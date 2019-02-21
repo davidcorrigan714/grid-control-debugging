@@ -1,0 +1,18 @@
+Get All Products (2737 of them):
+http://immix-backend.natinst.com/pmdm/odata/1/Products?ni-api-key=4cf9eaa4-dd31-4365-a3d4-33a8b526b545
+
+Get All Software Products:
+http://immix-backend.natinst.com/pmdm/odata/1/Products?ni-api-key=4cf9eaa4-dd31-4365-a3d4-33a8b526b545&%24filter=productType%20eq%20%27Software%27
+
+Get All Hardware Products:
+http://immix-backend.natinst.com/pmdm/odata/1/Products?ni-api-key=4cf9eaa4-dd31-4365-a3d4-33a8b526b545&%24filter=productType%20eq%20%27Hardware%27
+
+Get All Bundles:
+http://immix-backend.natinst.com/pmdm/odata/1/Products?ni-api-key=4cf9eaa4-dd31-4365-a3d4-33a8b526b545&%24filter=productType%20eq%20%27Bundle%27
+
+Get Software Product Attributes:
+http://immix-backend.natinst.com/pmdm/odata/1/SoftwareEditionVersionAgnosticMappings?%24filter=productName%20eq%20%27LabVIEW%27&ni-api-key=4cf9eaa4-dd31-4365-a3d4-33a8b526b545
+
+List of things you can query:
+http://immix-backend.natinst.com/pmdm/odata/1/
+

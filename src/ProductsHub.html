@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+
+<script src="js/jquery.min.js"></script>
+<script src="js/jquery-ui.min.js"></script>
+
+<script src="js/bootstrap.min.js"></script>
+<script src="js/jstree.min.js"></script>
+<script src="js/bootstrap-datepicker.min.js"></script>
+
+<link href="css/jstree/style.min.css" rel="stylesheet">
+<link href="css/bootstrap-datepicker.min.css" rel="stylesheet">
+<link href="css/bootstrap.min.css" rel="stylesheet">
+<link href="ms.vss-features.ui-widgets-content.min.css" rel="stylesheet" >
+<link href="https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css"  rel="stylesheet" >
+
+<head>
+    <script src="libs/VSS.SDK.min.js"></script>
+    <script>
+        // Sets up the initial handshake with the host frame
+        VSS.init({
+            // Our extension will explicitly notify the host when we're done loading
+            explicitNotifyLoaded: true,
+
+            // We are using some Azure DevOps Services APIs, so we will need the module loader to load them in
+            usePlatformScripts: true,
+        });
+
+        VSS.require([
+            "dist/src/hub"
+        ], function () {
+            // Loading succeeded
+            VSS.notifyLoadSucceeded();
+        });
+    </script>
+
+</head>
+<body>
+  <div class="container">
+    <div class="row">
+      <h3>NI Product Selector Configuration</h3>
+    </div>
+    <br/>
+    <div id="main-loading" class="row" >
+      <h1>Loading</h1>
+    </div>
+    <div id="main-container" hidden>
+      <div class="row">
+        <button type="button" class="btn btn-primary mr-1" data-toggle="modal" data-target="#manualModal">New Product</button>
+        <button type="button" class="btn btn-primary mr-1" onClick="newVersionPopup()">New Version</button>
+        <button type="button" class="btn btn-primary mr-1" data-toggle="modal" data-target="#pmdmModal">Import from PMDM</button>
+      </div>
+      <br/>
+      <div class="row">
+          <button type="button" class="btn btn-success mr-1" onClick="saveData()">Save</button>
+          <button type="button" class="btn btn-danger mr-1" onClick="deleteBtn()">Delete</button>
+      </div>
+      <br/>
+      <br/>
+      <div class="row">
+        <div class="col col-lg-2">
+          <h3>Products</h3>
+        </div>
+      </div> 
+      <div class="row">
+        <div class="col col-lg-8">
+          <div id="jstree_demo"></div>
+        </div>
+          <div class="col col-lg-4">
+            <h2 id="info-product">Selected Product</h2>
+            <h4 id="info-version">Version</h4>
+            <div id="info-date-area" hidden="true">
+              <h5>First Availability:</h5>
+              <input type="text" id="info-date" class="form-control" value="1980-01-01" readonly="true"> </input>
+            </div>
+            <div id="info-imported"></div>
+            <button type="button" id="info-external-update" class="btn btn-primary mr-1" onClick="updateFromPMDM()" hidden="true">Update from PMDM</button>
+            <input id="info-node" hidden="true"></input>
+          </div>
+        </div>
+      </div>
+  </div>
+
+
+<!-- TODO: Generalize/Abstract these modals -->
+
+<!-- Modal -->
+<!-- New Manaul Product -->
+<div class="modal fade" id="manualModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="exampleModalLabel">New Product</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="container">
+          <div class="row">
+            <div class="ui-widget">
+              <label for="newManualProductName">Name:</label>
+              <input id="newManualProductName">
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary"  onClick="newProduct()" data-dismiss="modal" >Add Product</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal -->
+<!-- New Version -->
+<div class="modal fade" id="newProductVersionModal" tabindex="-1" role="dialog" aria-labelledby="newProductName" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="newProductVersionName">New Product Version</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="container">
+          <div class="row">
+            <div class="ui-widget">
+            <label for="newVersionName">Version Name:</label>
+            <input id="newVersionName">
+            </div>
+          </div>
+          <div class="row">
+            First Available:
+            <div class="col col-sm-4">
+              <input type="text" id="new-version-date" class="form-control"></input>
+            </div>
+          </div>
+          <input hidden="true" id="newVersionProduct"></input>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" data-dismiss="modal" onClick="newVersionCompletion()" >Add Product</button>
+        <br/>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal -->
+<!-- PMDM Import -->
+<div class="modal fade" id="pmdmModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="exampleModalLabel">Import from PMDM</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="container">
+          <div class="row">
+              <div class="pmdmAutoFill">
+                <div class="ui-widget">
+                  <label for="tags">PMDM Products:</label>
+                  <input id="tags"></input>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="row">
+            <div class="col">
+            Start typing then select a product from the autocomplete.
+            </div>
+          </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary"  onClick="addPMDMProduct()" data-dismiss="modal" >Add Product</button>
+      </div>
+    </div>
+  </div>
+</div>
+    <script>
+      var runLocal = true;
+      var localURL = 'https://azdo-dev.natinst.com:8443';
+      var pmdmProducts = [];
+      var dirty = false;
+      var loadedProducts = false;
+
+      function flagDirty()
+      {
+        dirty = true;
+        window.onbeforeunload = function() {
+        return "Are you sure you want to navigate away?";
+        }
+      }
+
+      function clearDirty(){
+        dirty = false;
+        window.onbeforeunload = null;
+      }
+
+      // Sorts by firstAvailable or the node name
+      function sortByFirstAvailable(node1, node2){
+        var tree = $("#jstree_demo").jstree(true);
+        node1 = tree.get_node(node1);
+        node2 = tree.get_node(node2)
+
+        if('firstAvailable' in node1.original)
+        {
+          // The date string is 'YYYY-MM-DD' so we can sort by ASCII
+          if(node1.original.firstAvailable > node2.original.firstAvailable)
+          {
+            return -1;
+          }else if (node1.original.firstAvailable < node2.original.firstAvailable){
+            return 1;
+          }else{
+            if(node1.text.toLowerCase() < node2.text.toLowerCase()){
+              return 1;
+            }else{
+              return -1;
+            }
+          }
+        }else{
+          if(node1.text.toLowerCase() < node2.text.toLowerCase()){
+            return -1;
+          }else{
+            return 1;
+          }
+        }
+      }
+
+      function ProductVersionsAsTree(product){
+        var productVersions = GetProductVersions(product)['versions'];
+        // TODO Validate return
+
+        var arrayLength = productVersions.length;
+        var treeProducts = [];
+        for (var i = 0; i < arrayLength; i++) {
+            treeProducts.push({
+              'text' : productVersions[i]['Version'],
+              'children' : [],
+              "icon" : "jstree-file"
+            });
+        }
+        return treeProducts;
+      }
+
+      $('#jstree_demo')
+        .jstree({
+        "core" : {
+          "animation" : 0,
+          "check_callback" : true,
+          "multiple" : false,
+          "themes" : { "stripes" : true }
+        },
+        "types" : {
+          "#" : {
+            "max_children" : 200,
+            "max_depth" : 3,
+            "valid_children" : ["root"]
+          },
+          "root" : {
+            "icon" : "/static/3.3.7/assets/images/tree_icon.png",
+            "valid_children" : ["default"]
+          },
+          "default" : {
+            "valid_children" : ["default","file"]
+          },
+          "file" : {
+            "icon" : "glyphicon glyphicon-file",
+            "valid_children" : []
+          }
+        },
+        "plugins" : [
+          //"dnd",
+          "search",
+          "wholerow",
+          "sort"
+        ],
+        "sort" : sortByFirstAvailable
+      })
+      .on("changed.jstree", function (e, data) {
+			if(data.selected.length) {
+        var selectedPath = data.instance.get_path(data.selected[0]);
+
+        if (selectedPath.length == 0){
+          ResetProductInfo();
+        }
+
+        var rootNode = treeRootNode(data.selected[0]);
+
+        // Root node is the product name
+        $("#info-product").html(rootNode.text);
+
+        // Concat the rest of the nodes
+        selectedPath.shift()
+        $("#info-version").html(selectedPath.join(" "));
+
+        $("#info-node").val(data.selected[0]);
+        
+        var parents = data.instance.get_node(data.selected[0]).parents;
+        if (parents.length > 1){
+          // Not the root node
+          $("#info-date").attr("readonly", data.instance.get_node(parents[parents.length - 2]).original.imported);
+          $("#info-date").datepicker('update',data.instance.get_node(data.selected[0]).original.firstAvailable);
+          $("#info-date-area").attr("hidden",false);
+          $("#info-imported").text("");
+          $("#info-external-update").attr("hidden",true);
+        }else{
+          // Root Node
+          $("#info-external-update").attr("hidden",!rootNode.original.imported);
+          $("#info-date-area").attr("hidden",true);
+          if(rootNode.original.imported){
+            $("#info-imported").text("Imported from " + rootNode.original.source + ".");
+          }else{
+            $("#info-imported").text("");
+          }
+        }
+			}
+      });
+
+      function treeRootNode(nodeId){
+        parents = $('#jstree_demo').jstree(true).get_node(nodeId).parents;
+        if (parents.length > 1){
+          return $('#jstree_demo').jstree(true).get_node(parents[parents.length - 2]);
+        }else{
+          return $('#jstree_demo').jstree(true).get_node(nodeId);
+        }
+      }
+
+      $('#info-date').datepicker({
+        format: "yyyy-mm-dd",
+        enableOnReadonly: false
+      });
+      
+      $('#info-date').on('changeDate', function (){
+        flagDirty();
+        var ref = $('#jstree_demo').jstree(true);
+        var node = $('#info-node').val();
+        ref.get_node(node).original.firstAvailable = $('#info-date').datepicker('getFormattedDate');
+      });
+
+      function ResetProductInfo(){
+        $("#info-product").html("Selected Prodcut");
+        $("#info-version").html("");
+      }
+
+      function ProductFromPMDM(product){
+        flagDirty();
+        $.ajax({url: localURL+"/pmdmsoftwareproduct?product="+product, success: function(result){
+          var products = JSON.parse(result);
+          var ref = $('#jstree_demo').jstree(true);
+          ref.create_node(null, products);
+        }});
+      }
+
+      // Autocomplete for the pmdm dialog
+      $.ajax({url: localURL+"/pmdmsoftwareproducts", success: function(result){
+          pmdmProducts = JSON.parse(result);
+          $( "#tags" ).autocomplete({
+            source: pmdmProducts
+          });
+          $( "#tags" ).autocomplete( "option", "appendTo", ".pmdmAutoFill" );
+      }});
+
+      function addPMDMProduct(){
+        if(pmdmProducts.includes($("#tags").val())){
+          flagDirty();
+          ProductFromPMDM($("#tags").val());
+        }else{
+          alert("Product " + $("#tags").val() + " not found. BTW PMDM is case sensitive.");
+        }
+        $("#tags").val("");
+      }
+
+      function newProduct(){
+        flagDirty();
+        var product = $("#newManualProductName").val();
+        if (product != null && product != "") {
+          var ref = $('#jstree_demo').jstree(true);
+          ref.create_node(null, {
+            text: product,
+            children: [],
+            imported: false,
+            source: 'manual',
+            key: ''
+          });
+        }
+        $("#newManualProductName").val("");
+      }
+
+      function newVersionPopup(){
+        var ref = $('#jstree_demo').jstree(true);
+        if(ref.get_selected().length == 0){
+          alert("No product selected.\n");
+          return;
+        }
+        if(treeRootNode(ref.get_selected()).original.imported){
+          alert("Cannot add versions to imported products.\n");
+          return;
+        }
+
+        $("#newProductVersionName").html("New Product Version - " + treeRootNode(ref.get_selected()).text);
+        $('#newProductVersionModal').modal();
+        $('#newVersionProduct').val(treeRootNode(ref.get_selected()).id);
+      }
+
+      function newVersionCompletion()
+      {
+        flagDirty();
+        var productNode = $('#newVersionProduct').val();
+        var ref = $('#jstree_demo').jstree(true);
+        // TODO: Validate new-version-date
+        ref.deselect_all();
+        ref.select_node( ref.create_node(productNode, {
+            text: $('#newVersionName').val(),
+            children: [],
+            firstAvailable: $('#new-version-date').datepicker('getFormattedDate')
+          })
+        );
+      }
+
+      function setDoc(file, contents){
+        if(runLocal){
+          $.ajax({url: localURL+"/devSetDoc?doc="+file+"&contents="+contents, success: function(result){
+          }});
+        }else{
+          var myDoc = {
+              id: file,
+              data: contents,
+              __etag: -1 //TODO Not this
+            };
+
+          // Get data service
+          VSS.getService(VSS.ServiceIds.ExtensionData).then(function(dataService) {
+            dataService.setDocument("ProductCollection", myDoc).then(function(doc) {
+
+            }, function (err){
+              console.log(err);
+            });
+          });
+        }
+      }
+
+      function getDoc(file, cb)
+      {
+        if(runLocal){
+          //Run Locally
+          $.ajax({url: localURL+"/devGetDoc?doc="+file, success: function(result){
+            cb(result);
+          }});
+        }else{
+          // Run on VSS          
+          // Get data service
+          VSS.getService(VSS.ServiceIds.ExtensionData).then(function(dataService) {
+              // Get document by id
+              dataService.getDocument("ProductCollection", file).then(function(file) {
+                cb(file.data);
+              }, function (err){
+                console.log(err);
+              });
+          });
+        }
+      }
+
+      function saveProducts()
+      {
+        var tree = $('#jstree_demo').jstree(true);
+        var productNodes = tree.get_node('#').children;
+        var toWrite = [];
+        var arrayLength = productNodes.length;
+        for (var i = 0; i < arrayLength; i++) {
+          var node = tree.get_node(productNodes[i]);
+          toWrite.push({
+            text: node.text,
+            imported: node.original.imported,
+            source: node.original.source,
+            key: node.original.key,
+            areas: []
+          });
+        }
+        setDoc("products", JSON.stringify(toWrite));
+      }
+
+      function collapseTree(node){
+        var tree = $('#jstree_demo').jstree(true);
+        var ret = {};
+        var node = tree.get_node(node);
+        ret.text = node.text;
+        ret.firstAvailable = node.original.firstAvailable;
+        ret.children = [];
+        var arrayLength = node.children.length;
+        for (var i = 0; i < arrayLength; i++) {
+          ret.children.push(collapseTree(node.children[i]));
+        }
+        return ret;
+      }
+
+      function saveProductDetails()
+      {
+        var tree = $('#jstree_demo').jstree(true);
+        var productNodes = tree.get_node('#').children;
+        var arrayLength = productNodes.length;
+        for (var i = 0; i < arrayLength; i++) {
+          setDoc("product-"+tree.get_node(productNodes[i]).text,
+          JSON.stringify(collapseTree(productNodes[i])));
+        }
+      }
+
+      function saveData()
+      {
+        if(!loadedProducts){
+          // TODO Catch this better when loading
+          alert("Products weren't loaded, please refresh and try again.");
+          return;
+        }
+        saveProducts();
+        saveProductDetails();
+        clearDirty();
+      }
+
+      function populateChildNodes(node, children)
+      {
+        var ref = $('#jstree_demo').jstree(true);
+        var arrayLength = children.length;
+        for (var i = 0; i < arrayLength; i++) {
+          var newNode = ref.create_node(node, {
+            text: children[i].text,
+            firstAvailable: children[i].firstAvailable
+          });
+          populateChildNodes(newNode, children[i].children);
+        }
+      }
+
+      function loadProduct(product, node)
+      {
+        getDoc("product-"+product, function(result){
+          var ref = $('#jstree_demo').jstree(true);
+          var children = JSON.parse(result).children;
+          populateChildNodes(node, children);
+        }
+        );
+      }
+
+      function loadData()
+      {
+          getDoc('products', function(result)
+            {
+              var products = JSON.parse(result);
+              var ref = $('#jstree_demo').jstree(true);
+              var arrayLength = products.length;
+              for (var i = 0; i < arrayLength; i++) {
+                var node = ref.create_node(null, {
+                  text: products[i].text,
+                  children: [],
+                  imported: products[i].imported,
+                  source: products[i].source,
+                  key: products[i].key
+                });
+                loadProduct(products[i].text, node);
+              }
+              loadedProducts = true;
+              $("#main-container").attr("hidden",false);
+              $("#main-loading").attr("hidden",true);
+            }
+          );
+      }
+
+      loadData();
+
+      function updateFromPMDM(){
+        flagDirty();
+        var ref = $('#jstree_demo').jstree(true);
+        var selected = ref.get_selected();
+
+        if(selected.length != 1){
+          alert("Invalid Selection\n");
+          return;
+        }
+
+        var rootNode = treeRootNode(selected[0]);
+
+        if(!rootNode.original.imported || rootNode.original.source != "pmdm"){
+          alert("Product not from pmdm");
+          return;
+        }
+
+        var product = rootNode.original.key;
+
+        $.ajax({url: localURL+"/pmdmsoftwareproduct?product="+product, success: function(result){
+          var products = JSON.parse(result);
+          var ref = $('#jstree_demo').jstree(true);
+          ref.delete_node(selected[0]);
+          ref.create_node(null, products);
+          alert("Product updated\n");
+        },
+        error: function (){
+          alert("Failed to get product from PMDM.")
+        }
+        });
+      }
+
+      function deleteBtn(){
+        flagDirty();
+        var ref = $('#jstree_demo').jstree(true);
+        if(ref.get_selected().length == 0){
+          alert("No product selected.\n");
+          return;
+        }
+        
+        var selectedNodeId = ref.get_selected()[0];
+        var selectedNode = ref.get_node(selectedNodeId);
+        var rootNode = treeRootNode(selectedNodeId);
+
+        // TODO: Deletion Warning
+        if(rootNode.original.imported){
+          ref.delete_node(rootNode.id);
+        }else{
+          ref.delete_node(selectedNodeId);
+        }
+      }
+
+      // Don't recommend using this
+      // but it works well for testing escape characters
+      function AddAllSoftware(){
+        $.ajax({url: "http://azdo-dev.amer.corp.natinst.com:5000/pmdmsoftwareproducts", success: function(result){
+          var products = JSON.parse(result);
+          for(product in products){
+            ProductFromPMDM(products[product]);
+          }
+        }});
+      }
+
+      $('#new-version-date').datepicker({
+        format: "yyyy-mm-dd",
+        enableOnReadonly: false
+      });
+      
+      $('#pmdmModal').on('shown.bs.modal', function () {
+          $('#tags').trigger('focus');
+        })
+
+      $('#manualModal').on('shown.bs.modal', function () {
+        $('#newManualProductName').focus();
+        })
+
+
+    </script>
+  </body>
+</html>
