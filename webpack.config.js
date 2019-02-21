@@ -6,8 +6,7 @@ var CopyWebpackPlugin = require('copy-webpack-plugin');
 module.exports = {
     target: "web",
     entry: {
-        multivalue: "./src/multivalue.ts",
-        hub: "./src/hub.ts"
+        multivalue: "./src/multivalue.ts"
     },
     output: {
         filename: "src/[name].js",
@@ -53,8 +52,7 @@ module.exports = {
             { from: "./node_modules/jstree/dist/themes/default", to: "./css/jstree"},
             { from: "./node_modules/jquery-ui-bundle/jquery-ui.min.js", to: "./js"},
             { from: "./src/multivalue.html", to: "./" },
-            { from: "./src/ProductsHub.html", to: "./" },
-            { from: "./img", to: "img" }
+            { from: "./src/ProductsHub.html", to: "./" }
         ])
     ]
 }

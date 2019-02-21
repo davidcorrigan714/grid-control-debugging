@@ -1,2 +1,0 @@
-var container = $(".sample-container");
-

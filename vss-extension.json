@@ -1,7 +1,7 @@
 {
     "manifestVersion": 1.0,
     "id": "vsts-extensions-product-selector",
-    "version": "2.2.25.48",
+    "version": "2.2.25.54",
     "name": "Product Selector",
     "description": "A work item form control which allows selection of products.",
     "public": false,
@@ -23,8 +23,8 @@
             "addressable": true
         },
         {
-            "path": "img",
-            "addressable": true
+        "path": "img",
+        "addressable": true
         },
         {
             "path": "node_modules/vss-web-extension-sdk/lib",
@@ -34,31 +34,32 @@
     ],
     "repository": {
         "type": "git",
-        "uri": "https://github.com/Microsoft/vsts-extension-multivalue-control"
+        "uri": "https://ni.visualstudio.com/DefaultCollection/Users/_git/dcorriga-product-version-selector"
     },
     "links": {
         "home": {
-            "uri": "https://github.com/Microsoft/vsts-extension-multivalue-control"
+            "uri": ""
         },
         "learn": {
-            "uri": "https://github.com/Microsoft/vsts-extension-multivalue-control"
+            "uri": ""
         },
         "repository": {
-            "uri": "https://github.com/Microsoft/vsts-extension-multivalue-control"
+            "uri": "https://ni.visualstudio.com/DefaultCollection/Users/_git/dcorriga-product-version-selector"
         },
         "issues": {
-            "uri": "https://github.com/Microsoft/vsts-extension-multivalue-control/issues"
+            "uri": "https://ni.visualstudio.com/DefaultCollection/Users/_git/dcorriga-product-version-selector"
         },
         "support": {
-            "uri": "https://github.com/Microsoft/vsts-extension-multivalue-control/issues"
+            "uri": ""
         }
     },
     "tags": [
         "Work Items",
         "Extensions",
         "Work Item Control",
-        "Sample",
-        "Multivalue Control"
+        "Multivalue Control",
+        "Products",
+        "NI"
     ],
     "content": {
         "details": {
@@ -72,43 +73,25 @@
 		{
             "id": "multivalue-form-control",
             "type": "ms.vss-work-web.work-item-form-control",
-            "description": "A work item form control which allows selection of multiple values.",
+            "description": "A work item form control which allows selection of an NI Product.",
             "targets": [
                 "ms.vss-work-web.work-item-form"
             ],
             "properties": {
-                "name": "Multivalue control",
+                "name": "Product Selector Control",
                 "uri": "dist/multivalue.html",
                 "height": 50,
 				"inputs": [
 				    {
                         "id":"FieldName",
-                        "name": "Select the field for this control. This is the only input needed if the field is a picklist field with suggested values.",
+                        "name": "Select the field for this control. Must be 'Text (multiple lines)'",
                         "type": "WorkItemField",
                         "properties": {
-                            "workItemFieldTypes": ["String", "PlainText", "HTML"]
+                            "workItemFieldTypes": ["PlainText"]
                         },
                         "validation": {
                             "dataType": "String",
                             "isRequired": true
-                        }
-                    },
-                    {
-                        "id":"Values",
-                        "name": "Choose values for the control. This is only required if you're not using a picklist field. Example: Windows; IOS; Linux",
-                        "description": "Values can be user provided or from suggested values of the backing field",
-                        "validation": {
-                            "dataType": "String",
-                            "isRequired": false
-                        }
-                    },
-                    {
-                        "id":"AllowCustom",
-                        "name": "Allow users to enter custom values",
-                        "inputMode": "CheckBox",
-                        "validation": {
-                            "dataType": "Boolean",
-                            "isRequired": false
                         }
                     }
 				]
