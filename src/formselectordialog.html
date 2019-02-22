@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+
+<link href="css/jquery-ui.min.css"  rel="stylesheet" >
+<script src="js/jquery.min.js"></script>
+<script src="js/jquery-ui.min.js"></script>
+
+
+<head>
+  <script src="libs/VSS.SDK.min.js"></script>
+  <script>
+    // Sets up the initial handshake with the host frame
+    VSS.init();
+
+    var selectorDialog = (function() {
+        var callbacks = [];
+
+        function inputChanged() {
+            // Execute registered callbacks
+            for(var i = 0; i < callbacks.length; i++) {
+                callbacks[i](isValid());
+            }
+        }
+
+        function isValid() {
+            // Check whether form is valid or not
+            return true;
+        }
+
+        function getFormData() {
+            // Get form values
+            return {
+                product: $("#products").val() + $("#products-1").val()
+            };
+        }
+
+        //var name = document.getElementById("inpName");
+        //var dateOfBirth = document.getElementById("inpDob");
+        //var email = document.getElementById("inpEmail");
+
+        //name.addEventListener("change", inputChanged);
+        //dateOfBirth.addEventListener("change", inputChanged);
+        //email.addEventListener("change", inputChanged);
+
+        return {
+            isFormValid: function() {
+                return isValid();   
+            },
+            getFormData: function() {
+                return getFormData();
+            },
+            attachFormChanged: function(cb) {
+                  callbacks.push(cb);
+            }
+        };
+    })();
+
+    // Register form object to be used across this extension
+    VSS.register("form-selector-dialog", selectorDialog);
+  </script>
+</head>
+<body>
+
+    <div>
+            <select id="products"></select></br>
+            <select id="products-1"></select></br>
+            <select id="products-2"></select></br>
+    </div>
+
+  <script>
+      var runLocal = true;
+      var localURL = 'https://azdo-dev.natinst.com:8443';
+      var pmdmProducts = [];
+      var loadedProducts = false;
+
+      // Autocomplete for the pmdm dialog
+      $.ajax({url: localURL+"/pmdmsoftwareproducts", success: function(result){
+          pmdmProducts = JSON.parse(result);
+          $( "#tags" ).autocomplete({
+            source: pmdmProducts
+          });
+          $( "#tags" ).autocomplete( "option", "appendTo", ".pmdmAutoFill" );
+      }});
+
+
+      function getDoc(file, cb)
+      {
+        if(runLocal){
+          //Run Locally
+          $.ajax({url: localURL+"/devGetDoc?doc="+file, success: function(result){
+            cb(result);
+          }});
+        }else{
+          // Run on VSS          
+          // Get data service
+          VSS.getService(VSS.ServiceIds.ExtensionData).then(function(dataService) {
+              // Get document by id
+              dataService.getDocument("ProductCollection", file).then(function(file) {
+                cb(file.data);
+              }, function (err){
+                console.log(err);
+              });
+          });
+        }
+      }
+
+      function loadProduct(product, node)
+      {
+        getDoc("product-"+product, function(result){
+          
+        }
+        );
+      }
+
+      function loadData()
+      {
+          // TODO: Error handle the doc failing to load
+          getDoc('products', function(result)
+            {
+                var products = JSON.parse(result);
+                var productList = [];
+                var length = products.length;
+                for(product in products){
+                    $('#products').append("<option value=\"" + products[product].text + "\">" + products[product].text + "</option>");
+                }                   
+                updateProductDropdowns();
+            }
+          );
+      }
+
+      function productSelectionChange()
+      {
+          console.log($('#products').val());
+      }
+
+      // Determines how many levels of children there are in the object
+        function calculateSubLevels(products, currentLevel){
+            return 3;
+        }
+
+        function updateProductDropdowns(){
+            var product = $('#products').val();
+            getDoc('product-'+product, function(result)
+            {
+                var products = JSON.parse(result);
+                $('#products-1').empty();
+                var newOptions = [];
+                for(product in products.children){
+                    $('#products-1').append("<option value=\"" + products.children[product].text + "\">" + products.children[product].text + "</option>");
+                }
+            }
+          );
+        }
+
+      $('#products').on("change",function (){
+        updateProductDropdowns();
+      });
+
+      loadData();
+  </script>
+</body>
+</html>
