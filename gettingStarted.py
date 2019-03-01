@@ -14,23 +14,27 @@ import re
 app = Flask(__name__)
 CORS(app)
 
-apiKey = "4cf9eaa4-dd31-4365-a3d4-33a8b526b545"
-pmdmURL = "http://immix-backend.natinst.com/pmdm/odata/2/"
+apiKey = "3e1950b0-1e9b-48e9-a145-92bbab30f6b2"
 
-# Double escape requests to avoid Apache catching forward slashes as part of the path
+
+pmdmURL = "http://immix-dev.natinst.com/pmdm/odata/2/" # Dev
+#pmdmURL = "http://immix-test.natinst.com/pmdm/odata/2/" # Test
+#pmdmURL = "http://immix.natinst.com/pmdm/odata/2/"  # Production
+
+
 @app.route('/pmdmsoftwareproduct')
 def pmdmsoftwareproduct():
-	#product = urllib.parse.unquote(product)
-	product = request.args.get('product')
-	# TODO: Error check the request
-	product = product.replace("'", "''")
-	urlAddress = pmdmURL+'/SoftwareEditionVersionAgnosticMappings?%24filter=productName%20eq%20%27'+urllib.parse.quote_plus(product,safe='')+'%27&ni-api-key=' + apiKey
+	product = request.args.get('productId')
+	# TODO: Sanity check the request and productId
+	urlAddress = pmdmURL+'/SoftwareEditionVersionAgnosticMappings?%24filter=productId%20eq%20%27'+product+'%27&ni-api-key=' + apiKey
 	req = urllib.request.Request(urlAddress)
 	response = urllib.request.urlopen(req, timeout = 2)
 	data = response.read()
 	encoding = response.info().get_content_charset('utf-8')
 	returnData = data.decode(encoding)
 	xmlNode = ET.fromstring(returnData)
+	
+	productName = ''
 	
 	if not 'feed' in xmlNode.tag:
 		return "ERROR: Feed tag not found"
@@ -55,39 +59,38 @@ def pmdmsoftwareproduct():
 								newEntry['firstAvailable'] = newEntry['firstAvailable'][0:10]
 						if 'nvaMarketingVersion' in node2.tag:
 							newEntry['nvaMarketingVersion'] = node2.text
+						if 'nvaModelConceptId' in node2.tag:
+							newEntry['nvaModelConceptId'] = node2.text
+						if 'vaModelConceptId' in node2.tag:
+							newEntry['vaModelConceptId'] = node2.text
+						if 'nvaEditionName' in node2.tag:
+							newEntry['nvaEditionName'] = node2.text
 						if 'productName' in node2.tag:
 							newEntry['productName'] = node2.text
+							productName = node2.text
 			returnNodes.append(newEntry)
 	
 	softwareTree = {
-		'text':product,
-		'children':[],
+		'text':productName,
 		'imported':True,
 		'source':'pmdm',
-		'key':product
+		'key':"pmdms"+product,
+		'children':[]
 	}
 	
-	uniqueVersions = []
-	
-	# Find all the product versions
+	# Find all the unique product versions
 	for product in returnNodes:
-		if not product['nvaMarketingVersion'] in uniqueVersions:
-			uniqueVersions.append(product['nvaMarketingVersion'])
-	
-	# Add the products to the version categories
-	for version in uniqueVersions:
-		softwareTree['children'].append({'text':version,'children':[]})
-	
-	# filter out duplicates in the version editions
+		if not any(x for x in softwareTree['children'] if x['key'] == product['nvaMarketingVersion']):
+			softwareTree['children'].append({'text':product['nvaMarketingVersion'],'key':product['nvaMarketingVersion'], 'children':[]})
+
+	# Add editions to versions
 	for version in softwareTree['children']:
 		for entry in returnNodes:
-			if version['text'] in entry['nvaMarketingVersion']:
-				contains = False
-				for item in version['children']:
-					if item['text'] in entry['editionType']:
-						contains = True
-				if not contains:
-					version['children'].append({'text':entry['editionType'],'children':[],'firstAvailable':entry['firstAvailable']})
+			if version['key'] == entry['nvaMarketingVersion'] and not any(x for x in version['children'] if x['key'] == entry['nvaModelConceptId']) and not 'Media' in entry['editionType']:
+				newName = entry['nvaEditionName'].replace(newEntry['productName'], '').strip().replace(version['key'],'').strip()
+				if len(newName) == 0:
+					newName = entry['editionType']
+				version['children'].append({'text':newName,'key':entry['nvaModelConceptId'],'firstAvailable':entry['firstAvailable'], 'children':[]})
 
 	# Attach a year at the version level
 	for version in softwareTree['children']:
@@ -124,9 +127,13 @@ def pmdmsoftwareproducts():
 			newEntry = {}
 			for node in child:
 				if 'content' in node.tag:
+					obj = {'name':'','productId':''}
 					for node2 in node[0]:
 						if 'name' in node2.tag:
-							returnNames.append(node2.text)
+							obj['name'] = node2.text
+						if 'productId' in node2.tag:
+							obj['productId'] = node2.text
+					returnNames.append(obj)
 	return json.dumps(returnNames)
 
 
@@ -155,7 +162,7 @@ def pmdmhardwareproducts():
 							returnNames.append(node2.text)
 	return json.dumps(returnNames)
 	
-
+# USED FOR AZDO DEV, SHOULD NOT BE PUSHED TO PRODUCTION
 @app.route('/devSetDoc')
 def setDoc():
 	doc = request.args.get('doc')
@@ -169,7 +176,7 @@ def setDoc():
 	
 	return ""
 	
-	
+# USED FOR AZDO DEV, SHOULD NOT BE PUSHED TO PRODUCTION
 @app.route('/devGetDoc')
 def getDoc():
 	doc = request.args.get('doc')

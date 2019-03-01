@@ -16,3 +16,8 @@ http://immix-backend.natinst.com/pmdm/odata/1/SoftwareEditionVersionAgnosticMapp
 List of things you can query:
 http://immix-backend.natinst.com/pmdm/odata/1/
 
+Hardware:
+http://immix.natinst.com/pmdm/odata/1/Products('118198')/modelConcepts?ni-api-key=a0783673-3103-4f35-ba20-9568099227cd
+
+Product Name: name ; name; name ;
+Product Key: pmdm{productId},{nvaMarketingVersion},{vaModelConceptId};pmdm{productId},{modelConceptId};
