@@ -21,6 +21,11 @@
             "type": "npm",
             "script": "publish:dev",
             "problemMatcher": []
+        },
+        {
+            "type": "npm",
+            "script": "build:dev:pub",
+            "problemMatcher": []
         }
     ]
 }

@@ -4,12 +4,11 @@
 <script src="js/jquery.min.js"></script>
 <script src="js/jquery-ui.min.js"></script>
 
-
 <head>
   <script src="libs/VSS.SDK.min.js"></script>
   <script>
     // Sets up the initial handshake with the host frame
-    VSS.init();
+    VSS.init({applyTheme: true, explicitNotifyLoaded: true});
 
     var selectorDialog = (function() {
         var callbacks = [];
@@ -29,7 +28,8 @@
         function getFormData() {
             // Get form values
             return {
-                product: $("#products").val() + $("#products-1").val()
+                productName: $("#product-name").html(),
+                productKey: $("#key-name").html()
             };
         }
 
@@ -60,27 +60,22 @@
 </head>
 <body>
 
-    <div>
-            <select id="products"></select></br>
-            <select id="products-1"></select></br>
-            <select id="products-2"></select></br>
-    </div>
+  <div style="">
+    Product:</br>
+    <select id="products"></select></br></br>
+    Version:</br>
+    <select id="products-1"></select></br></br>
+    Edition (optional):  </br>
+    <select id="products-2"></select></br></br>
+    <div id="key-name" hidden="true"></div>
+    <div id="product-name"  hidden="true"></div>
+  </div>
 
   <script>
-      var runLocal = true;
+      var runLocal = false;
       var localURL = 'https://azdo-dev.natinst.com:8443';
       var pmdmProducts = [];
       var loadedProducts = false;
-
-      // Autocomplete for the pmdm dialog
-      $.ajax({url: localURL+"/pmdmsoftwareproducts", success: function(result){
-          pmdmProducts = JSON.parse(result);
-          $( "#tags" ).autocomplete({
-            source: pmdmProducts
-          });
-          $( "#tags" ).autocomplete( "option", "appendTo", ".pmdmAutoFill" );
-      }});
-
 
       function getDoc(file, cb)
       {
@@ -103,14 +98,6 @@
         }
       }
 
-      function loadProduct(product, node)
-      {
-        getDoc("product-"+product, function(result){
-          
-        }
-        );
-      }
-
       function loadData()
       {
           // TODO: Error handle the doc failing to load
@@ -119,43 +106,90 @@
                 var products = JSON.parse(result);
                 var productList = [];
                 var length = products.length;
+                $('#products').append("<option value=\"\"></option>");
                 for(product in products){
-                    $('#products').append("<option value=\"" + products[product].text + "\">" + products[product].text + "</option>");
+                    $('#products').append("<option value=\"" + products[product].key + "\">" + products[product].text + "</option>");
                 }                   
                 updateProductDropdowns();
+                VSS.notifyLoadSucceeded();
             }
           );
       }
 
       function productSelectionChange()
       {
-          console.log($('#products').val());
+        //TODO Fix callbacks to point to here
       }
 
-      // Determines how many levels of children there are in the object
-        function calculateSubLevels(products, currentLevel){
-            return 3;
-        }
+      subProducts = [];
 
-        function updateProductDropdowns(){
-            var product = $('#products').val();
-            getDoc('product-'+product, function(result)
-            {
-                var products = JSON.parse(result);
-                $('#products-1').empty();
-                var newOptions = [];
-                for(product in products.children){
-                    $('#products-1').append("<option value=\"" + products.children[product].text + "\">" + products.children[product].text + "</option>");
-                }
-            }
-          );
-        }
+      function updateProductDropdowns(){
+        var product = $('#products').val();
+        // TODO Catch failure
+        if(product.length == 0){
+          $('#products-1').empty();
+          $("#products-2").empty();
+        }else
+        getDoc('product-'+product, function(result)
+        {
+          subProducts = JSON.parse(result);
+          $('#products-1').empty();
+          $("#products-2").empty();
+          $('#products-1').append("<option value=\"\"></option>");
+          for(product in subProducts.children){
+            $('#products-1').append("<option value=\"" + subProducts.children[product].key + "\">" + subProducts.children[product].text + "</option>");
+          }
+          updateLabel();
+        });
+      }
+
+      function fullProductName(){
+        return $('#products').val() + " " + $("#products-1").val();
+      }
 
       $('#products').on("change",function (){
         updateProductDropdowns();
+        updateLabel();
       });
 
+      $('#products-2').on("change", function () { updateLabel();   });
+
+      $('#products-1').on("change", function () { 
+        $('#products-2').empty();
+        $('#products-2').append("<option value=\"\"></option>");
+        for(product in subProducts.children){
+          if(subProducts.children[product].key ==  $('#products-1').val()){
+            for(edition in subProducts.children[product].children){
+              $('#products-2').append("<option value=\"" + subProducts.children[product].children[edition].key + "\">" + subProducts.children[product].children[edition].text + "</option>");
+            }
+          }
+        }
+        updateLabel();
+      });
+      
+      function updateLabel()
+      {
+        var product = $('#products').val() || "";
+        var version = $('#products-1').val() || "";
+        var edition = $('#products-2').val() || "";
+        
+        var fullKey = product;
+
+        // There's probably some fancy concise way of doing this, but it works for now.
+        if(version.length > 0)
+        {
+          fullKey = fullKey + "," + version;
+          if(edition.length > 0){
+            fullKey = fullKey + "," + edition;
+          }
+        }
+
+        $('#key-name').html(fullKey);
+        $('#product-name').html(($('#products option:selected').text() + ' ' + $('#products-1 option:selected').text() + ' ' + $('#products-2 option:selected').text()).trim());
+      }
+
       loadData();
+     
   </script>
 </body>
 </html>

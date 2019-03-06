@@ -1,23 +1,23 @@
 Get All Products (2737 of them):
-http://immix-backend.natinst.com/pmdm/odata/1/Products?ni-api-key=4cf9eaa4-dd31-4365-a3d4-33a8b526b545
+http://immix-backend.natinst.com/pmdm/odata/2/Products?ni-api-key=4cf9eaa4-dd31-4365-a3d4-33a8b526b545
 
 Get All Software Products:
-http://immix-backend.natinst.com/pmdm/odata/1/Products?ni-api-key=4cf9eaa4-dd31-4365-a3d4-33a8b526b545&%24filter=productType%20eq%20%27Software%27
+http://immix-backend.natinst.com/pmdm/odata/2/Products?ni-api-key=4cf9eaa4-dd31-4365-a3d4-33a8b526b545&%24filter=productType%20eq%20%27Software%27
 
 Get All Hardware Products:
-http://immix-backend.natinst.com/pmdm/odata/1/Products?ni-api-key=4cf9eaa4-dd31-4365-a3d4-33a8b526b545&%24filter=productType%20eq%20%27Hardware%27
+http://immix-backend.natinst.com/pmdm/odata/2/Products?ni-api-key=4cf9eaa4-dd31-4365-a3d4-33a8b526b545&%24filter=productType%20eq%20%27Hardware%27
 
 Get All Bundles:
-http://immix-backend.natinst.com/pmdm/odata/1/Products?ni-api-key=4cf9eaa4-dd31-4365-a3d4-33a8b526b545&%24filter=productType%20eq%20%27Bundle%27
+http://immix-backend.natinst.com/pmdm/odata/2/Products?ni-api-key=4cf9eaa4-dd31-4365-a3d4-33a8b526b545&%24filter=productType%20eq%20%27Bundle%27
 
 Get Software Product Attributes:
-http://immix-backend.natinst.com/pmdm/odata/1/SoftwareEditionVersionAgnosticMappings?%24filter=productName%20eq%20%27LabVIEW%27&ni-api-key=4cf9eaa4-dd31-4365-a3d4-33a8b526b545
+http://immix-backend.natinst.com/pmdm/odata/2/SoftwareEditionVersionAgnosticMappings?%24filter=productName%20eq%20%27LabVIEW%27&ni-api-key=4cf9eaa4-dd31-4365-a3d4-33a8b526b545
 
 List of things you can query:
-http://immix-backend.natinst.com/pmdm/odata/1/
+http://immix-backend.natinst.com/pmdm/odata/2/
 
 Hardware:
-http://immix.natinst.com/pmdm/odata/1/Products('118198')/modelConcepts?ni-api-key=a0783673-3103-4f35-ba20-9568099227cd
+http://immix.natinst.com/pmdm/odata/2/Products('118198')/modelConcepts?ni-api-key=a0783673-3103-4f35-ba20-9568099227cd
 
 Product Name: name ; name; name ;
 Product Key: pmdm{productId},{nvaMarketingVersion},{vaModelConceptId};pmdm{productId},{modelConceptId};

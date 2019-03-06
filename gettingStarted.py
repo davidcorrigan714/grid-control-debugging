@@ -16,26 +16,42 @@ CORS(app)
 
 apiKey = "3e1950b0-1e9b-48e9-a145-92bbab30f6b2"
 
-
 pmdmURL = "http://immix-dev.natinst.com/pmdm/odata/2/" # Dev
 #pmdmURL = "http://immix-test.natinst.com/pmdm/odata/2/" # Test
 #pmdmURL = "http://immix.natinst.com/pmdm/odata/2/"  # Production
 
+def pmdmRequest(req):
+	urlAddress = pmdmURL+req+"ni-api-key=" + apiKey
+	req = urllib.request.Request(urlAddress)
+	response = urllib.request.urlopen(req, timeout = 2)
+	data = response.read()
+	encoding = response.info().get_content_charset('utf-8')
+	return ET.fromstring(data.decode(encoding))
 
 @app.route('/pmdmsoftwareproduct')
 def pmdmsoftwareproduct():
 	product = request.args.get('productId')
 	# TODO: Sanity check the request and productId
-	urlAddress = pmdmURL+'/SoftwareEditionVersionAgnosticMappings?%24filter=productId%20eq%20%27'+product+'%27&ni-api-key=' + apiKey
-	req = urllib.request.Request(urlAddress)
-	response = urllib.request.urlopen(req, timeout = 2)
-	data = response.read()
-	encoding = response.info().get_content_charset('utf-8')
-	returnData = data.decode(encoding)
-	xmlNode = ET.fromstring(returnData)
+	
+	# Get the product name
+	xmlNode = pmdmRequest("/Products('"+product+"')?")
 	
 	productName = ''
-	
+
+	if not 'entry' in xmlNode.tag:
+		return "ERROR: entry tag not found"
+
+	newEntry = {} # TODO Initialize fields to blank
+	for node in xmlNode:
+		if 'id' in node.tag:
+			newEntry['id'] = node.text
+		if 'content' in node.tag:
+			for node2 in node[0]:
+				if 'name' in node2.tag:
+					productName = node2.text
+
+	xmlNode = pmdmRequest('/SoftwareEditionVersionAgnosticMappings?%24filter=productId%20eq%20%27'+product+'%27&')
+
 	if not 'feed' in xmlNode.tag:
 		return "ERROR: Feed tag not found"
 	
@@ -67,7 +83,6 @@ def pmdmsoftwareproduct():
 							newEntry['nvaEditionName'] = node2.text
 						if 'productName' in node2.tag:
 							newEntry['productName'] = node2.text
-							productName = node2.text
 			returnNodes.append(newEntry)
 	
 	softwareTree = {
@@ -87,7 +102,8 @@ def pmdmsoftwareproduct():
 	for version in softwareTree['children']:
 		for entry in returnNodes:
 			if version['key'] == entry['nvaMarketingVersion'] and not any(x for x in version['children'] if x['key'] == entry['nvaModelConceptId']) and not 'Media' in entry['editionType']:
-				newName = entry['nvaEditionName'].replace(newEntry['productName'], '').strip().replace(version['key'],'').strip()
+				# Test cases for this: 'LabVIEW', "TestStand" and 'LabVIEW Biomedical Toolkit'
+				newName = entry['nvaEditionName'].replace(entry['productName'], '').strip().replace(version['key'],'').strip().replace('  ', ' ').replace(entry['productName'], '').strip()
 				if len(newName) == 0:
 					newName = entry['editionType']
 				version['children'].append({'text':newName,'key':entry['nvaModelConceptId'],'firstAvailable':entry['firstAvailable'], 'children':[]})
@@ -110,13 +126,7 @@ def pmdmsoftwareproduct():
 @app.route('/pmdmsoftwareproducts')
 def pmdmsoftwareproducts():
 	# TODO: Error check the request
-	urlAddress = pmdmURL+'/Products?%24filter=productType%20eq%20%27Software%27&ni-api-key=' + apiKey
-	req = urllib.request.Request(urlAddress)
-	response = urllib.request.urlopen(req, timeout = 2)
-	data = response.read()
-	encoding = response.info().get_content_charset('utf-8')
-	returnData = data.decode(encoding)
-	xmlNode = ET.fromstring(returnData)
+	xmlNode = pmdmRequest('/Products?%24filter=productType%20eq%20%27Software%27&')
 	
 	if not 'feed' in xmlNode.tag:
 		return "ERROR: Feed tag not found"
@@ -140,13 +150,7 @@ def pmdmsoftwareproducts():
 @app.route('/pmdmhardwareproducts')
 def pmdmhardwareproducts():
 	# TODO: Error check the request
-	urlAddress = pmdmURL+'/Products?%24filter=productType%20eq%20%27Hardware%27&ni-api-key=' + apiKey
-	req = urllib.request.Request(urlAddress)
-	response = urllib.request.urlopen(req, timeout = 2)
-	data = response.read()
-	encoding = response.info().get_content_charset('utf-8')
-	returnData = data.decode(encoding)
-	xmlNode = ET.fromstring(returnData)
+	xmlNode = pmdmRequest('/Products?%24filter=productType%20eq%20%27Hardware%27&')
 	
 	if not 'feed' in xmlNode.tag:
 		return "ERROR: Feed tag not found"
@@ -157,9 +161,13 @@ def pmdmhardwareproducts():
 			newEntry = {}
 			for node in child:
 				if 'content' in node.tag:
+					obj = {'name':'','productId':''}
 					for node2 in node[0]:
 						if 'name' in node2.tag:
-							returnNames.append(node2.text)
+							obj['name'] = node2.text
+						if 'productId' in node2.tag:
+							obj['productId'] = node2.text
+					returnNames.append(obj)
 	return json.dumps(returnNames)
 	
 # USED FOR AZDO DEV, SHOULD NOT BE PUSHED TO PRODUCTION

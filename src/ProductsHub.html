@@ -17,11 +17,9 @@
   <script>
     // Sets up the initial handshake with the host frame
     VSS.init({
-      // Our extension will explicitly notify the host when we're done loading
       explicitNotifyLoaded: true,
-
-      // We are using some Azure DevOps Services APIs, so we will need the module loader to load them in
       usePlatformScripts: true,
+      applyTheme: true
     });
 
     VSS.require([
@@ -35,16 +33,13 @@
 <body style="overflow: scroll ">
   <div class="container">
     <div class="row">
-      <h3>NI Product Selector Configuration</h3>
+      <h3>NI Products Version Configuration</h3>
     </div>
     <br/>
 
     <div id="main-container" >
-      <div class="row">
-        <button type="button" class="btn btn-primary mr-1" data-toggle="modal" data-target="#manualModal">New Product</button>
-        <button type="button" class="btn btn-primary mr-1" onClick="newVersionPopup()">New Version</button>
-        <button type="button" class="btn btn-primary mr-1" data-toggle="modal" data-target="#pmdmModal">Import from PMDM</button>
-      </div>
+
+      <div class="actions-control toolbar" id="menubar"></div>
       <br/>
       <div class="row">
           <button type="button" class="btn btn-success mr-1" onClick="saveData()">Save</button>
@@ -148,7 +143,7 @@
   </div>
 
   <!-- Modal -->
-  <!-- PMDM Import -->
+  <!-- PMDM Software Import -->
   <div class="modal fade" id="pmdmModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
     <div class="modal-dialog" role="document">
       <div class="modal-content">
@@ -183,10 +178,49 @@
       </div>
     </div>
   </div>
+
+  <!-- Modal -->
+  <!-- PMDM Hardware Import -->
+  <div class="modal fade" id="pmdmHardwareModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="exampleModalLabel">Import from PMDM</h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="container">
+            <div class="row">
+                <div class="pmdmHardwareAutoFill">
+                  <div class="ui-widget">
+                    <label for="hardwareTags">PMDM Products:</label>
+                    <input id="hardwareTags"></input>
+                  </div>
+                    <input id="toAddPMDMHardwareid" hidden />
+                </div>
+              </div>
+            </div>
+            <div class="row">
+              <div class="col">
+              Start typing then select a product from the autocomplete.
+              </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-primary"  onClick="addPMDMHardwareProduct()" data-dismiss="modal" >Add Product</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script>
-      var runLocal = true;
+      var runLocal = false;
       var localURL = 'https://azdo-dev.natinst.com:8443';
       var pmdmProducts = [];
+      var pmdmHardwareProducts = [];
       var dirty = false;
       var loadedProducts = false;
 
@@ -386,9 +420,57 @@
           $( "#tags" ).autocomplete( "option", "appendTo", ".pmdmAutoFill" );
       }});
 
+      // Autocomplete for the pmdm dialog
+      $.ajax({url: localURL+"/pmdmhardwareproducts", success: function(result){
+          pmdmHardwareProducts = JSON.parse(result);
+          pmdmHardwareProducts.sort();
+          var tagValues = [];
+          for(product in pmdmHardwareProducts){
+            tagValues.push({label:pmdmHardwareProducts[product].name, value:pmdmHardwareProducts[product].productId})
+          }
+          $( "#hardwareTags" ).autocomplete({
+            source: tagValues,
+            select: function(event, ui)
+                    {
+                      var id = ui.item.value;
+                      var name = ui.item.label;
+                      $("#toAddPMDMHardwareid").val(ui.item.value);
+                      $("#hardwareTags").val(name);
+                      return false;
+                    },
+            focus: function(event, ui){
+              return false;
+            }
+          });
+          $( "#hardwareTags" ).autocomplete( "option", "appendTo", ".pmdmHardwareAutoFill" );
+      }});
+
       function addPMDMProduct(){
         var found = false;
         var found = pmdmProducts.find(function (element) { return element.productId == $("#toAddPMDMid").val();});
+        if(found === undefined ){
+          alert($("#tags").val() + " not found");
+        }else{
+          flagDirty();
+          ProductFromPMDM(found.productId);
+        }
+        $("#tags").val("");
+        $("#toAddPMDMid").val("");
+      }
+
+      function addAllSoftwareProducts(){
+        for(id = 0; id < 400; id++)
+        {
+          flagDirty();
+          ProductFromPMDM(pmdmProducts[id].productId);
+        }
+        $("#tags").val("");
+        $("#toAddPMDMid").val("");
+      }
+      
+      function addPMDMHardwareProduct(){
+        var found = false;
+        var found = pmdmProducts.find(function (element) { return element.productId == $("#toAddPMDMHardwareid").val();});
         if(found === undefined ){
           alert($("#tags").val() + " not found");
         }else{
@@ -599,7 +681,7 @@
                   source: products[i].source,
                   key: products[i].key
                 });
-                loadProduct(products[i].text, node);
+                loadProduct(products[i].key, node);
               }
               loadedProducts = true;
               $("#main-container").attr("hidden",false);
@@ -662,17 +744,6 @@
         }
       }
 
-      // Don't recommend using this
-      // but it works well for testing escape characters
-      function AddAllSoftware(){
-        $.ajax({url: "http://azdo-dev.amer.corp.natinst.com:5000/pmdmsoftwareproducts", success: function(result){
-          var products = JSON.parse(result);
-          for(product in products){
-            ProductFromPMDM(products[product]);
-          }
-        }});
-      }
-
       $('#new-version-date').datepicker({
         format: "yyyy-mm-dd",
         enableOnReadonly: false
@@ -686,6 +757,53 @@
         $('#newManualProductName').focus();
         })
 
+      VSS.require(["VSS/Controls", "VSS/Controls/Menus"], function(Controls, Menus) {
+        var container = $("#menubar");
+
+        var menuItems = [
+          { id: "new-product", text: "New Product",  noIcon: true  },
+          { separator: true },
+          { id: "new-version", text: "New Version", noIcon: true },
+          { separator: true },
+          { id: "import-pmdm-software", text: "Import Software from PMDM", noIcon: true },
+          { separator: true},
+          { id: "import-400-software", text: "Add 400 Products", noIcon: true },
+          { separator: true},
+          { id: "delete-all", text: "Delete All Products", noIcon: true },
+          { separator: true},
+        ];
+
+        var menubarOptions = {
+          items: menuItems,
+          executeAction: function (args) {
+            var command = args.get_commandName();
+            switch (command) {
+                case "new-product": manualModal
+                  $("#manualModal").modal();
+                  break;
+                case "new-version":
+                  newVersionPopup();
+                  break;
+                case "import-pmdm-software": pmdmModal
+                  $("#pmdmModal").modal();
+                  break;
+                case "import-400-software":
+                  addAllSoftwareProducts();
+                  break;
+                case "delete-all":
+                  flagDirty();
+                  var ref = $('#jstree_demo').jstree("destroy").empty();
+                  break;
+                default:
+                  alert("Unhandled action: " + command);
+                  break;
+            }
+          }
+        };
+
+        var menubar = Controls.create(Menus.MenuBar, container, menubarOptions);
+
+    });
 
   </script>
 </body>

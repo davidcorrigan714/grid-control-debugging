@@ -6,258 +6,34 @@
 
 <head>
   <script src="libs/VSS.SDK.min.js"></script>
+
+  <meta charset="UTF-8">
+  <title>Multi Values Control</title>
+  <link rel="stylesheet" href="multi-selection.css"/>
+  <!-- for ie -->
+  <script src="https://www.promisejs.org/polyfills/promise-6.1.0.js"></script>
+
   <script>
-   VSS.init({
-            explicitNotifyLoaded: true,
-            usePlatformScripts: true
-        });
-        VSS.require(["TFS/WorkItemTracking/Services"], function (_WorkItemServices) {
-            // Get the WorkItemFormService.  This service allows you to get/set fields/links on the 'active' work item (the work item
-            // that currently is displayed in the UI).
-            function getWorkItemFormService()
-            {
-                return _WorkItemServices.WorkItemFormService.getService();
-            }
-
-            getWorkItemFormService().then(function(service) {            
-                    // Get the current values for a few of the common fields
-                    service.getFields().then(
-                        function (value) {
-                            console.log(value);
-                        });
-                });
-            
-            function saveValue(value) {
-                getWorkItemFormService().then(function(service) {            
-                    // Get the current values for a few of the common fields
-                    console.log("Saving: " + VSS.getConfiguration().witInputs['FieldName'] + ": " + value);
-                    service.setFieldValue(VSS.getConfiguration().witInputs['FieldName'], value).then ( function (success){
-                        console.log(success);
-                    });
-                });
-            }
-
-            // Register a listener for the work item page contribution
-            VSS.register(VSS.getContribution().id, function () {
-                return {
-                    // Called when the active work item is modified
-                    onFieldChanged: function(args) {
-                        console.log("onFieldChanged - " + JSON.stringify(args));
-                    },
-                    
-                    // Called when a new work item is being loaded in the UI
-                    onLoaded: function (args) {
-                        getWorkItemFormService().then(function(service) {           
-                            var field =  VSS.getConfiguration().witInputs['FieldName'];
-                            
-                            // Get the current values for a few of the common fields
-                            service.getFieldValues(["System.Id", "System.Title", "System.State", "System.CreatedDate", ]).then(
-                                function (value) {
-                                    $("#product-label").html(value[field]);
-                                   console.log("onLoaded - " + JSON.stringify(value));
-                                },
-                                function(error) { 
-                                    window.alert(error.message); 
-                                });
-                        });
-                    },
-                    
-                    // Called when the active work item is being unloaded in the UI
-                    onUnloaded: function (args) {
-                        $(".events").empty();
-                        $(".events").append($("<div/>").text("onUnloaded - " + JSON.stringify(args)));
-                    },
-                    
-                    // Called after the work item has been saved
-                    onSaved: function (args) {
-                        console.log("onSaved - " + JSON.stringify(args));
-                    },
-                    
-                    // Called when the work item is reset to its unmodified state (undo)
-                    onReset: function (args) {
-                        console.log("onReset - " + JSON.stringify(args));
-                    },
-                    
-                    // Called when the work item has been refreshed from the server
-                    onRefreshed: function (args) {
-                        console.log("onRefreshed - " + JSON.stringify(args));
-                    }
-                }
-            });
-            VSS.notifyLoadSucceeded();
-             $("#clickme").click(function() {
-                 getWorkItemFormService().then(function(service) {
-                     //service.setFieldValue("System.Title", "Title set from extension!")
-                 });
-             });
-         });
+    VSS.init({
+      explicitNotifyLoaded: true,
+      usePlatformScripts: true,
+      applyTheme: true
+    });
+    VSS.require(["TFS/WorkItemTracking/Services",
+                "TFS/WorkItemTracking/Services",
+                "TFS/WorkItemTracking/ExtensionContracts",
+                "TFS/WorkItemTracking/Services",
+                "TFS/WorkItemTracking/RestClient",
+                "VSS/Utils/Core",
+                "VSS/Utils/UI",
+                "dist/src/multivalue"
+          ], function (_WorkItemServices) {
+              VSS.notifyLoadSucceeded();
+      });
 
   </script>
 </head>
 <body>
-
-<select id="products"></select></br>
-<select id="products-1"></select></br>
-<select id="products-2"></select></br>
-<div id="key-name"></div>
-
-<script>
-
-var runLocal = true;
-      var localURL = 'https://azdo-dev.natinst.com:8443';
-      var pmdmProducts = [];
-      var loadedProducts = false;
-
-      // Autocomplete for the pmdm dialog
-      $.ajax({url: localURL+"/pmdmsoftwareproducts", success: function(result){
-          pmdmProducts = JSON.parse(result);
-          $( "#tags" ).autocomplete({
-            source: pmdmProducts
-          });
-          $( "#tags" ).autocomplete( "option", "appendTo", ".pmdmAutoFill" );
-      }});
-
-
-      function getDoc(file, cb)
-      {
-        if(runLocal){
-          //Run Locally
-          $.ajax({url: localURL+"/devGetDoc?doc="+file, success: function(result){
-            cb(result);
-          }});
-        }else{
-          // Run on VSS          
-          // Get data service
-          VSS.getService(VSS.ServiceIds.ExtensionData).then(function(dataService) {
-              // Get document by id
-              dataService.getDocument("ProductCollection", file).then(function(file) {
-                cb(file.data);
-              }, function (err){
-                console.log(err);
-              });
-          });
-        }
-      }
-
-      function loadProduct(product, node)
-      {
-        getDoc("product-"+product, function(result){
-          
-        }
-        );
-      }
-
-      function loadData()
-      {
-          // TODO: Error handle the doc failing to load
-          getDoc('products', function(result)
-            {
-                var products = JSON.parse(result);
-                console.log(products);
-                var productList = [];
-                var length = products.length;
-                for(product in products){
-                    $('#products').append("<option value=\"" + products[product].key + "\">" + products[product].text + "</option>");
-                }                   
-                updateProductDropdowns();
-            }
-          );
-      }
-
-      function productSelectionChange()
-      {
-        //TODO Fix callbacks to point to here
-      }
-
-      function saveValue(value) {
-        VSS.require(["TFS/WorkItemTracking/Services"], function (_WorkItemServices) {
-            _WorkItemServices.WorkItemFormService.getService().then(function(service) {            
-                    // Get the current values for a few of the common fields
-                    console.log(VSS.getConfiguration().witInputs);
-                    service.setFieldValue(VSS.getConfiguration().witInputs['FieldName'], value).then ( function (success){
-                        console.log(success);
-                    });
-                });
-            });
-        }
-
-      // Determines how many levels of children there are in the object
-        function calculateSubLevels(products, currentLevel){
-            return 3;
-        }
-      
-      subProducts = [];
-
-      function updateProductDropdowns(){
-        var product = $('#products').val();
-        // TODO Catch failure
-        getDoc('product-'+product, function(result)
-        {
-          subProducts = JSON.parse(result);
-          $('#products-1').empty();
-          $("#products-2").empty();
-          $('#products-1').append("<option value=\"\"></option>");
-          for(product in subProducts.children){
-            $('#products-1').append("<option value=\"" + subProducts.children[product].key + "\">" + subProducts.children[product].text + "</option>");
-          }
-          VSS.resize();
-        });
-      }
-
-      function fullProductName(){
-        return $('#products').val() + " " + $("#products-1").val();
-      }
-
-      $('#products').on("change",function (){
-        updateProductDropdowns();
-        VSS.resize();
-        updateLabel();
-      });
-
-      $('#products-2').on("change", function () { updateLabel(); saveValue(fullProductName()); VSS.resize(); });
-      $('#products-1').on("change", function () { 
-        $('#products-2').empty();
-        $('#products-2').append("<option value=\"\"></option>");
-        for(product in subProducts.children){
-          if(subProducts.children[product].key ==  $('#products-1').val()){
-            for(edition in subProducts.children[product].children){
-              $('#products-2').append("<option value=\"" + subProducts.children[product].children[edition].key + "\">" + subProducts.children[product].children[edition].text + "</option>");
-            }
-          }
-        }
-        VSS.resize();
-        updateLabel();
-      });
-      
-      function updateLabel()
-      {
-        var product = $('#products').val();
-        var version = $('#products-1').val();
-        var edition = $('#products-2').val();
-        
-        var fullKey = '';
-
-        // There's probably some fancy concise way of doing this, but it works for now.
-        if(product.length > 0){
-          if(version.length > 0)
-          {
-            fullKey = product + "," + version;
-            if(edition.length > 0){
-              fullKey = fullKey + "," + edition + ";";
-            }else{
-              fullKey = fullKey + ";";
-            }
-          }else{
-            fullKey = product + ";";
-          } 
-        }
-
-        $('#key-name').html(fullKey);
-      }
-
-      loadData();
-     
-    VSS.resize();
-  </script>
+<div id="container"></div>
 </body>
 </html>
