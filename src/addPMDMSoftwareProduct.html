@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <script src="libs/VSS.SDK.min.js"></script>
+        <script src="js/jquery.min.js"></script>
+        <script src="js/jquery-ui.min.js"></script>
+    </head>
+    <body>
+        <div class="row">
+            <div class="pmdmAutoFill">
+              <div class="ui-widget">
+                <input id="tags"></input>
+              </div>
+                <input id="toAddPMDMid" hidden />
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col">
+          Start typing then select a product from the autocomplete.
+          </div>
+        </div>
+
+        <script>
+            VSS.init({
+                explicitNotifyLoaded: true,
+                usePlatformScripts: true,
+                applyTheme: true
+            });
+            var registrationForm = (function() {
+                var callbacks = [];
+
+                function inputChanged() {
+                    // Execute registered callbacks
+                    for(var i = 0; i < callbacks.length; i++) {
+                        callbacks[i](isValid());
+                    }
+                }
+
+                function isValid() {
+                    // Check whether form is valid or not
+                    return true;
+                }
+
+                function getFormData() {
+                    // Get form values
+                    return {
+                        productId: toAddPMDMid,
+                    };
+                }
+
+                var productId = document.getElementById("tags");
+                productId.addEventListener("change", inputChanged);
+
+                return {
+                    isFormValid: function() {
+                        return isValid();   
+                    },
+                    getFormData: function() {
+                        return getFormData();
+                    },
+                    attachFormChanged: function(cb) {
+                         callbacks.push(cb);
+                    }
+                };
+            })();
+
+            // Register form object to be used across this extension
+            VSS.register("pmdm-software-selection-dialog", registrationForm);
+
+            var localURL = 'https://azdo-dev.natinst.com:8443';
+            var pmdmProducts = [];
+
+            // Autocomplete for the pmdm dialog
+            $.ajax({url: localURL+"/pmdmsoftwareproducts", success: function(result){
+                pmdmProducts = JSON.parse(result);
+                pmdmProducts.sort();
+                var tagValues = [];
+                for(product in pmdmProducts){
+                    tagValues.push({label:pmdmProducts[product].name, value:pmdmProducts[product].productId})
+                }
+                $( "#tags" ).autocomplete({
+                    source: tagValues,
+                    select: function(event, ui)
+                            {
+                            var id = ui.item.value;
+                            var name = ui.item.label;
+                            $("#toAddPMDMid").val(ui.item.value);
+                            $("#tags").val(name);
+                            return false;
+                            },
+                    focus: function(event, ui){
+                    return false;
+                    }
+                });
+                VSS.notifyLoadSucceeded();
+            }});
+
+        </script>
+    </body>
+</html>

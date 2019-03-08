@@ -53,7 +53,8 @@ module.exports = {
             { from: "./node_modules/jquery-ui-bundle/jquery-ui.min.js", to: "./js"},
             { from: "./src/productselector.html", to: "./" },
             { from: "./src/formselectordialog.html", to: "./" },
-            { from: "./src/productshub.html", to: "./" }
+            { from: "./src/productshub.html", to: "./" },
+            { from: "./src/addPMDMSoftwareProduct.html", to: "./" }
         ])
     ]
 }

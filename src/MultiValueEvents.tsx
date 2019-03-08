@@ -117,6 +117,9 @@ export class MultiValueEvents {
         if (typeof value !== "string") {
             return [];
         }
+        if(value.length == 0){
+            return [];
+        }
         return JSON.parse(this.decodeHTMLEntities(value));
     }
     private _setTags = async (tags: {name: string, key: string}[]): Promise<void> => {
