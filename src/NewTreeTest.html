@@ -29,6 +29,9 @@
     <div class="row">
       <h3>NI Products Version Configuration</h3>
     </div>
+    <button type="button" onClick="$('#pmdmModal').modal();">Add PMDM</button>
+    <button type="button" onClick="saveData();">Save</button>
+    <button type="button" onClick="nodeInfo();">Node Info</button>
     <br/>
 
     <div id="main-container" hidden>
@@ -209,12 +212,7 @@
       var pmdmHardwareProducts = [];
       var dirty = false;
       var dialog;
-
-      VSS.require([
-      "VSS/Controls/Dialogs"
-      ], function (Dialogs) {
-        dialog = Dialogs
-      });
+      var runLocal = true;
 
       function flagDirty()
       {
@@ -262,7 +260,15 @@
       var getDoc = function(file){
         return new Promise(function(resolve, reject)
         {
-          VSS.getService(VSS.ServiceIds.ExtensionData).then(function(dataService) {
+          if(runLocal){
+            //Run Locally
+            $.ajax({url: localURL+"/devGetDoc?doc="+file, success: function(result){
+              resolve(result);
+            }});
+          }else{
+            // Run on VSS          
+            // Get data service
+            VSS.getService(VSS.ServiceIds.ExtensionData).then(function(dataService) {
               // Get document by id
               dataService.getDocument("ProductCollection", file).then(function(file) {
                 resolve(file.data);
@@ -270,6 +276,7 @@
                 reject(err); // test for err.status == 404
               });
           });
+          }
         });
       }
 
@@ -295,7 +302,7 @@
                           }
                         );
                       }
-                    }
+          }
         },
         "types" : {
           "#" : {
@@ -360,7 +367,7 @@
           }
         }
       });
-
+  
       function treeRootNode(nodeId){
         parents = $('#jstree_demo').jstree(true).get_node(nodeId).parents;
         if (parents.length > 1){
@@ -375,7 +382,6 @@
         enableOnReadonly: false
       });
 
-      
       $('#info-date').on('changeDate', function (){
         flagDirty();
         var ref = $('#jstree_demo').jstree(true);
@@ -480,22 +486,13 @@
       }
 
       function addAllSoftwareProducts(){
-        for(id = 0; id < pmdmProducts.length; id++)
+        for(id = 0; id < 400; id++)
         {
           flagDirty();
           ProductFromPMDM(pmdmProducts[id].productId);
         }
         $("#tags").val("");
         $("#toAddPMDMid").val("");
-      }
-
-      
-      function addAllHardwareProducts(){
-        for(id = 0; id < pmdmHardwareProducts.length; id++)
-        {
-          flagDirty();
-          ProductFromPMDM(pmdmHardwareProducts[id].productId);
-        }
       }
       
       function addPMDMHardwareProduct(){
@@ -578,20 +575,36 @@
         return key.toLowerCase().replace(/,/g,"").replace(/;/g,"").replace(/ /g,"").replace(/&/g,"");
       }
 
-      function setDoc(file, contents, force = false){
-        var myDoc = {
-            id: file,
-            data: contents,
-            __etag: -1 //TODO Not this
-          };
+      function setDoc(file, contents){
+        if(runLocal){
+          $.ajax({url: localURL+"/devSetDoc?doc="+file+"&contents="+contents, success: function(result){
+          }});
+        }else{
+          var myDoc = {
+              id: file,
+              data: contents,
+              __etag: -1 //TODO Not this
+            };
 
-        VSS.getService(VSS.ServiceIds.ExtensionData).then(function(dataService) {
-          dataService.setDocument("ProductCollection", myDoc).then(function(doc) {
+          // Get data service
+          VSS.getService(VSS.ServiceIds.ExtensionData).then(function(dataService) {
+            dataService.setDocument("ProductCollection", myDoc).then(function(doc) {
 
-          }, function (err){
-            alert("Error setting document"+file+"on remote serner.");
+            }, function (err){
+              console.log(err);
+            });
           });
-        });
+        }
+      }
+
+      function nodeInfo()
+      {
+        var tree = $('#jstree_demo').jstree(true);
+        var productNodes = tree.get_node('#').children;
+        var arrayLength = productNodes.length;
+        for (var i = 0; i < arrayLength; i++) {
+          console.log(tree.get_node(productNodes[i]));
+        }
       }
 
       function saveProductDetails()
@@ -616,6 +629,7 @@
         var arrayLength = productNodes.length;
         for (var i = 0; i < arrayLength; i++) {
           var node = tree.get_node(productNodes[i]);
+          console.log(node);
           var hasChildren = false;
           if(node.state.loaded && node.children.length > 0 || !node.state.loaded){
             hasChildren = true;
@@ -678,7 +692,7 @@
         getDoc("product-"+product).then( function(result){
           var ref = $('#jstree_demo').jstree(true);
           var children = JSON.parse(result).children;
-          populateChildNodes(node, children);
+          // populateChildNodes(node, children);
         },
         function(err){
           console.log("Nope! " + err);
@@ -759,91 +773,11 @@
       
       $('#pmdmModal').on('shown.bs.modal', function () {
           $('#tags').trigger('focus');
-        })
+        });
 
       $('#manualModal').on('shown.bs.modal', function () {
         $('#newManualProductName').focus();
-        })
-
-      VSS.require(["VSS/Controls", "VSS/Controls/Menus"], function(Controls, Menus) {
-        var container = $("#menubar");
-
-        var menuItems = [
-          { id: "new-product", text: "New Product",  noIcon: true  },
-          { separator: true },
-          { id: "new-version", text: "New Version", noIcon: true },
-          { separator: true },
-          { id: "import-pmdm-software", text: "Import Software - PMDM", noIcon: true },
-          { separator: true},
-          { id: "import-pmdm-hardware", text: "Import Hardware - PMDM", noIcon: true },
-          { separator: true},
-          { id: "import-1000-software", text: "All Software ", noIcon: true },
-          { separator: true },
-          { id: "import-1000-hardware", text: "All Hardware", noIcon: true },
-          { separator: true },
-          { id: "delete-items", text: "Delete Product(s)", noIcon: true },
-          { separator: true },
-          { id: "save", text: "Save", noIcon: true },
-          { separator: true }
-        ];
-
-        var menubarOptions = {
-          items: menuItems,
-          executeAction: function (args) {
-            var command = args.get_commandName();
-            switch (command) {
-                case "new-product":
-                  $("#manualModal").modal();
-                  break;
-                case "new-version":
-                  newVersionPopup();
-                  break;
-                case "import-pmdm-software": 
-                  $("#pmdmModal").modal();
-                  break;
-                case "import-pmdm-hardware":
-                  $("#pmdmHardwareModal").modal();
-                  break;
-                case "import-1000-software":
-                  addAllSoftwareProducts();
-                  break;
-                case "import-1000-hardware":
-                  addAllHardwareProducts();
-                  break;
-                case "delete-items":
-                  flagDirty();
-                  var ref = $('#jstree_demo').jstree(true);
-                  if(ref.get_selected().length == 0){
-                    alert("No product selected.\n");
-                    return;
-                  }
-                  
-                  do {
-                    var selectedNodeId = ref.get_selected()[0];
-                    var selectedNode = ref.get_node(selectedNodeId);
-                    var rootNode = treeRootNode(selectedNodeId);
-
-                    // TODO: Deletion Warning
-                    if(rootNode.original.imported){
-                      ref.delete_node(rootNode.id);
-                    }else{
-                      ref.delete_node(selectedNodeId);
-                    }
-                  }while(ref.get_selected().length > 0);
-                  break;
-                case "save":
-                  saveData();
-                  break;
-                default:
-                  alert("Unhandled action: " + command);
-                  break;
-            }
-          }
-        };
-
-        var menubar = Controls.create(Menus.MenuBar, container, menubarOptions);
-
-    });
+        });
 
   </script>
 </body>
