@@ -60,6 +60,7 @@ export class MultiValueEvents {
             title: "Product Selection",
             width: 600,
             height: 325,
+            urlReplacementObject: {key: '1234'},
             getDialogResult: function() {
                 // Get the result from registrationForm object
                 return registrationForm ? registrationForm.getFormData() : null;

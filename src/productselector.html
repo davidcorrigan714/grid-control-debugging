@@ -1,9 +1,5 @@
 <!DOCTYPE html>
 
-<link href="css/jquery-ui.min.css"  rel="stylesheet" >
-<script src="js/jquery.min.js"></script>
-<script src="js/jquery-ui.min.js"></script>
-
 <head>
   <script src="libs/VSS.SDK.min.js"></script>
 
@@ -19,16 +15,10 @@
       usePlatformScripts: true,
       applyTheme: true
     });
-    VSS.require(["TFS/WorkItemTracking/Services",
-                "TFS/WorkItemTracking/ExtensionContracts",
-                "TFS/WorkItemTracking/RestClient",
-                "VSS/Utils/Core",
-                "VSS/Utils/UI",
-                "dist/src/multivalue"
-          ], function (_WorkItemServices) {
-              VSS.notifyLoadSucceeded();
-      });
-
+    VSS.require(["dist/src/multivalue"],
+    function () {
+      VSS.notifyLoadSucceeded();
+    });
   </script>
 </head>
 <body>

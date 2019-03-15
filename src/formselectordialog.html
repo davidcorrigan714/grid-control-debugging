@@ -10,7 +10,24 @@
     // Sets up the initial handshake with the host frame
     VSS.init({applyTheme: true, explicitNotifyLoaded: true});
 
-    var selectorDialog = (function() {
+    // http://www.jquerybyexample.net/2012/06/get-url-parameters-using-jquery.html
+    function GetURLParameter(sParam)
+    {
+      var sPageURL = window.location.search.substring(1);
+      var sURLVariables = sPageURL.split('&');
+      for (var i = 0; i < sURLVariables.length; i++)
+      {
+        var sParameterName = sURLVariables[i].split('=');
+        if (sParameterName[0] == sParam)
+        {
+            return sParameterName[1];
+        }
+      }
+    }
+
+    var initialProduct = GetURLParameter('key');
+
+    var selectorDialog = (function(id) {
         var callbacks = [];
 
         function inputChanged() {
@@ -33,14 +50,6 @@
             };
         }
 
-        //var name = document.getElementById("inpName");
-        //var dateOfBirth = document.getElementById("inpDob");
-        //var email = document.getElementById("inpEmail");
-
-        //name.addEventListener("change", inputChanged);
-        //dateOfBirth.addEventListener("change", inputChanged);
-        //email.addEventListener("change", inputChanged);
-
         return {
             isFormValid: function() {
                 return isValid();   
@@ -60,7 +69,7 @@
 </head>
 <body>
 
-  <div style="">
+  <div>
     Product:</br>
     <select id="products"></select></br></br>
     Version:</br>
@@ -103,12 +112,10 @@
           // TODO: Error handle the doc failing to load
           getDoc('products', function(result)
             {
-                var products = JSON.parse(result);
-                var productList = [];
-                var length = products.length;
+                pmdmProducts = JSON.parse(result);
                 $('#products').append("<option value=\"\"></option>");
-                for(product in products){
-                    $('#products').append("<option value=\"" + products[product].key + "\">" + products[product].text + "</option>");
+                for(product in pmdmProducts){
+                    $('#products').append("<option value=\"" + product + "\">" + pmdmProducts[product].text + "</option>");
                 }                   
                 updateProductDropdowns();
                 VSS.notifyLoadSucceeded();
@@ -116,21 +123,16 @@
           );
       }
 
-      function productSelectionChange()
-      {
-        //TODO Fix callbacks to point to here
-      }
-
       subProducts = [];
 
       function updateProductDropdowns(){
-        var product = $('#products').val();
+        var product = pmdmProducts[$('#products').val()];
         // TODO Catch failure
-        if(product.length == 0){
+        if(typeof(product) == "undefined" || product.length == 0 || !product.children){
           $('#products-1').empty();
           $("#products-2").empty();
         }else
-        getDoc('product-'+product, function(result)
+        getDoc('product-'+product.key, function(result)
         {
           subProducts = JSON.parse(result);
           $('#products-1').empty();
@@ -141,10 +143,6 @@
           }
           updateLabel();
         });
-      }
-
-      function fullProductName(){
-        return $('#products').val() + " " + $("#products-1").val();
       }
 
       $('#products').on("change",function (){
@@ -169,7 +167,7 @@
       
       function updateLabel()
       {
-        var product = $('#products').val() || "";
+        var product = pmdmProducts[$('#products').val()].key || "";
         var version = $('#products-1').val() || "";
         var edition = $('#products-2').val() || "";
         
@@ -189,7 +187,6 @@
       }
 
       loadData();
-     
   </script>
 </body>
 </html>

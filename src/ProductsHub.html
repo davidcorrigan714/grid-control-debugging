@@ -403,10 +403,23 @@
         return found;
       }
 
-      function ProductFromPMDM(productId){
+      function SoftwareProductFromPMDM(productId){
         // TODO Sanitize product names from pmdm
         flagDirty();
         $.ajax({url: localURL+"/pmdmsoftwareproduct?productId="+productId, success: function(result){
+          var products = JSON.parse(result);
+          if(productKeyExists(products.key)){
+            alert("Product already exists.");
+          }else{
+            $('#jstree_demo').jstree(true).create_node(null, products);
+          }
+        }});
+      }
+
+      function HardwareProductFromPMDM(productId){
+        // TODO Sanitize product names from pmdm
+        flagDirty();
+        $.ajax({url: localURL+"/pmdmhardwareproduct?productId="+productId, success: function(result){
           var products = JSON.parse(result);
           if(productKeyExists(products.key)){
             alert("Product already exists.");
@@ -473,7 +486,7 @@
           alert($("#tags").val() + " not found");
         }else{
           flagDirty();
-          ProductFromPMDM(found.productId);
+          SoftwareProductFromPMDM(found.productId);
         }
         $("#tags").val("");
         $("#toAddPMDMid").val("");
@@ -483,7 +496,7 @@
         for(id = 0; id < pmdmProducts.length; id++)
         {
           flagDirty();
-          ProductFromPMDM(pmdmProducts[id].productId);
+          SoftwareProductFromPMDM(pmdmProducts[id].productId);
         }
         $("#tags").val("");
         $("#toAddPMDMid").val("");
@@ -494,21 +507,21 @@
         for(id = 0; id < pmdmHardwareProducts.length; id++)
         {
           flagDirty();
-          ProductFromPMDM(pmdmHardwareProducts[id].productId);
+          HardwareProductFromPMDM(pmdmHardwareProducts[id].productId);
         }
       }
       
       function addPMDMHardwareProduct(){
         var found = false;
-        var found = pmdmProducts.find(function (element) { return element.productId == $("#toAddPMDMHardwareid").val();});
+        var found = pmdmHardwareProducts.find(function (element) { return element.productId == $("#toAddPMDMHardwareid").val();});
         if(found === undefined ){
-          alert($("#tags").val() + " not found");
+          alert($("#toAddPMDMHardwareid").val() + " not found");
         }else{
           flagDirty();
-          ProductFromPMDM(found.productId);
+          HardwareProductFromPMDM(found.productId);
         }
-        $("#tags").val("");
-        $("#toAddPMDMid").val("");
+        $("#hardwareTags").val("");
+        $("#toAddPMDMHardwareid").val("");
       }
 
       function newProduct(){
@@ -760,6 +773,10 @@
       $('#pmdmModal').on('shown.bs.modal', function () {
           $('#tags').trigger('focus');
         })
+
+      $('#pmdmHardwareModal').on('shown.bs.modal', function () {
+        $('#hardwareTags').trigger('focus');
+      })
 
       $('#manualModal').on('shown.bs.modal', function () {
         $('#newManualProductName').focus();
