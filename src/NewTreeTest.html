@@ -32,6 +32,9 @@
     <button type="button" onClick="$('#pmdmModal').modal();">Add PMDM</button>
     <button type="button" onClick="saveData();">Save</button>
     <button type="button" onClick="nodeInfo();">Node Info</button>
+    <button type="button" onClick="saveAllInOne();">Save All In One</button>
+    <button type="button" onClick="addAllSoftwareProducts();">All Software</button>
+    <button type="button" onClick="addAllHardwareProducts();">All Hardware</button>
     <br/>
 
     <div id="main-container" hidden>
@@ -409,10 +412,23 @@
         return found;
       }
 
-      function ProductFromPMDM(productId){
+      function SoftwareProductFromPMDM(productId){
         // TODO Sanitize product names from pmdm
         flagDirty();
         $.ajax({url: localURL+"/pmdmsoftwareproduct?productId="+productId, success: function(result){
+          var products = JSON.parse(result);
+          if(productKeyExists(products.key)){
+            alert("Product already exists.");
+          }else{
+            $('#jstree_demo').jstree(true).create_node(null, products);
+          }
+        }});
+      }
+
+      function HardwareProductFromPMDM(productId){
+        // TODO Sanitize product names from pmdm
+        flagDirty();
+        $.ajax({url: localURL+"/pmdmhardwareproduct?productId="+productId, success: function(result){
           var products = JSON.parse(result);
           if(productKeyExists(products.key)){
             alert("Product already exists.");
@@ -479,22 +495,12 @@
           alert($("#tags").val() + " not found");
         }else{
           flagDirty();
-          ProductFromPMDM(found.productId);
+          SoftwareProductFromPMDM(found.productId);
         }
         $("#tags").val("");
         $("#toAddPMDMid").val("");
       }
 
-      function addAllSoftwareProducts(){
-        for(id = 0; id < 400; id++)
-        {
-          flagDirty();
-          ProductFromPMDM(pmdmProducts[id].productId);
-        }
-        $("#tags").val("");
-        $("#toAddPMDMid").val("");
-      }
-      
       function addPMDMHardwareProduct(){
         var found = false;
         var found = pmdmProducts.find(function (element) { return element.productId == $("#toAddPMDMHardwareid").val();});
@@ -577,7 +583,7 @@
 
       function setDoc(file, contents){
         if(runLocal){
-          $.ajax({url: localURL+"/devSetDoc?doc="+file+"&contents="+contents, success: function(result){
+          $.ajax({url: localURL+"/devSetDoc?doc="+file, contentType:"application/json", type:"POST",data:contents, success: function(result){
           }});
         }else{
           var myDoc = {
@@ -629,7 +635,6 @@
         var arrayLength = productNodes.length;
         for (var i = 0; i < arrayLength; i++) {
           var node = tree.get_node(productNodes[i]);
-          console.log(node);
           var hasChildren = false;
           if(node.state.loaded && node.children.length > 0 || !node.state.loaded){
             hasChildren = true;
@@ -659,6 +664,39 @@
           ret.children.push(collapseTree(node.children[i]));
         }
         return ret;
+      }
+
+      function saveAllInOne()
+      {
+        var tree = $('#jstree_demo').jstree(true);
+        var productNodes = tree.get_node('#').children;
+        var toWrite = [];
+        var arrayLength = productNodes.length;
+        var fullTreeCollapsed = [];
+        for (var i = 0; i < arrayLength; i++) {
+          var node = tree.get_node(productNodes[i]);
+          var hasChildren = false;
+          if(node.state.loaded && node.children.length > 0 || !node.state.loaded){
+            hasChildren = true;
+          }
+          var toAdd = {
+            name: node.text,
+            key: node.original.key,
+            children: []
+          };
+          if(hasChildren){
+            for(child in node.children){
+              var childNode = tree.get_node(node.children[child]);
+              toAdd.children.push({
+                name: childNode.text,
+                key: childNode.original.key
+              });  
+            }
+          }
+          fullTreeCollapsed.push(toAdd);
+        }
+        console.log(fullTreeCollapsed);
+        setDoc("allproducts", JSON.stringify(fullTreeCollapsed));
       }
 
       function saveData()
@@ -764,6 +802,26 @@
           alert("Failed to get product from PMDM.")
         }
         });
+      }
+
+      
+      function addAllSoftwareProducts(){
+        for(id = 0; id < pmdmProducts.length; id++)
+        {
+          flagDirty();
+          SoftwareProductFromPMDM(pmdmProducts[id].productId);
+        }
+        $("#tags").val("");
+        $("#toAddPMDMid").val("");
+      }
+
+      
+      function addAllHardwareProducts(){
+        for(id = 0; id < pmdmHardwareProducts.length; id++)
+        {
+          flagDirty();
+          HardwareProductFromPMDM(pmdmHardwareProducts[id].productId);
+        }
       }
 
       $('#new-version-date').datepicker({

@@ -501,7 +501,6 @@
         $("#tags").val("");
         $("#toAddPMDMid").val("");
       }
-
       
       function addAllHardwareProducts(){
         for(id = 0; id < pmdmHardwareProducts.length; id++)
@@ -801,8 +800,43 @@
           { id: "delete-items", text: "Delete Product(s)", noIcon: true },
           { separator: true },
           { id: "save", text: "Save", noIcon: true },
+          { separator: true },
+          { id: "saveAll", text: "Save All", noIcon: true },
           { separator: true }
         ];
+
+      function saveAllInOne()
+      {
+        var tree = $('#jstree_demo').jstree(true);
+        var productNodes = tree.get_node('#').children;
+        var toWrite = [];
+        var arrayLength = productNodes.length;
+        var fullTreeCollapsed = [];
+        for (var i = 0; i < arrayLength; i++) {
+          var node = tree.get_node(productNodes[i]);
+          var hasChildren = false;
+          if(node.state.loaded && node.children.length > 0 || !node.state.loaded){
+            hasChildren = true;
+          }
+          var toAdd = {
+            name: node.text,
+            key: node.original.key,
+            children: []
+          };
+          if(hasChildren){
+            for(child in node.children){
+              var childNode = tree.get_node(node.children[child]);
+              toAdd.children.push({
+                name: childNode.text,
+                key: childNode.original.key
+              });  
+            }
+          }
+          fullTreeCollapsed.push(toAdd);
+        }
+        console.log(fullTreeCollapsed);
+        setDoc("allproducts", JSON.stringify(fullTreeCollapsed));
+      }
 
         var menubarOptions = {
           items: menuItems,
@@ -850,6 +884,9 @@
                   break;
                 case "save":
                   saveData();
+                  break;
+                case "saveAll":
+                  saveAllInOne();
                   break;
                 default:
                   alert("Unhandled action: " + command);

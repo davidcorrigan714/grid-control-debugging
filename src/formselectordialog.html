@@ -74,8 +74,6 @@
     <select id="products"></select></br></br>
     Version:</br>
     <select id="products-1"></select></br></br>
-    Edition (optional):  </br>
-    <select id="products-2"></select></br></br>
     <div id="key-name" hidden="true"></div>
     <div id="product-name"  hidden="true"></div>
   </div>
@@ -110,12 +108,13 @@
       function loadData()
       {
           // TODO: Error handle the doc failing to load
-          getDoc('products', function(result)
+          getDoc('allproducts', function(result)
             {
+              console.log(result);
                 pmdmProducts = JSON.parse(result);
                 $('#products').append("<option value=\"\"></option>");
                 for(product in pmdmProducts){
-                    $('#products').append("<option value=\"" + product + "\">" + pmdmProducts[product].text + "</option>");
+                    $('#products').append("<option value=\"" + product + "\">" + pmdmProducts[product].name + "</option>");
                 }                   
                 updateProductDropdowns();
                 VSS.notifyLoadSucceeded();
@@ -130,19 +129,16 @@
         // TODO Catch failure
         if(typeof(product) == "undefined" || product.length == 0 || !product.children){
           $('#products-1').empty();
-          $("#products-2").empty();
-        }else
-        getDoc('product-'+product.key, function(result)
-        {
-          subProducts = JSON.parse(result);
+        }else{
+          subProducts = pmdmProducts[$('#products').val()]['children'];
           $('#products-1').empty();
-          $("#products-2").empty();
           $('#products-1').append("<option value=\"\"></option>");
-          for(product in subProducts.children){
-            $('#products-1').append("<option value=\"" + subProducts.children[product].key + "\">" + subProducts.children[product].text + "</option>");
+          for(product in subProducts){
+            $('#products-1').append("<option value=\"" + subProducts[product].key + "\">" + subProducts[product].name + "</option>");
           }
           updateLabel();
-        });
+        }
+
       }
 
       $('#products').on("change",function (){
@@ -150,18 +146,8 @@
         updateLabel();
       });
 
-      $('#products-2').on("change", function () { updateLabel();   });
 
       $('#products-1').on("change", function () { 
-        $('#products-2').empty();
-        $('#products-2').append("<option value=\"\"></option>");
-        for(product in subProducts.children){
-          if(subProducts.children[product].key ==  $('#products-1').val()){
-            for(edition in subProducts.children[product].children){
-              $('#products-2').append("<option value=\"" + subProducts.children[product].children[edition].key + "\">" + subProducts.children[product].children[edition].text + "</option>");
-            }
-          }
-        }
         updateLabel();
       });
       
@@ -169,7 +155,6 @@
       {
         var product = pmdmProducts[$('#products').val()].key || "";
         var version = $('#products-1').val() || "";
-        var edition = $('#products-2').val() || "";
         
         var fullKey = product;
 
@@ -177,13 +162,10 @@
         if(version.length > 0)
         {
           fullKey = fullKey + "," + version;
-          if(edition.length > 0){
-            fullKey = fullKey + "," + edition;
-          }
         }
 
         $('#key-name').html(fullKey);
-        $('#product-name').html(($('#products option:selected').text() + ' ' + $('#products-1 option:selected').text() + ' ' + $('#products-2 option:selected').text()).trim());
+        $('#product-name').html(($('#products option:selected').text() + ' ' + $('#products-1 option:selected').text()).trim());
       }
 
       loadData();
