@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!DOCTYPE html style="height: 100%">
 
 <script src="js/jquery.min.js"></script>
 <script src="js/jquery-ui.min.js"></script>
@@ -12,6 +12,8 @@
 <link href="css/bootstrap.min.css" rel="stylesheet">
 <link href="css/jquery-ui.min.css"  rel="stylesheet" >
 
+<script src="js/lunr.min.js"></script>
+
 <head>
   <script src="libs/VSS.SDK.min.js"></script>
   <script>
@@ -24,7 +26,7 @@
 
   </script>
 </head>
-<body style="overflow: scroll ">
+<body style="height: 100%">
   <div class="container">
     <div class="row">
       <h3>NI Products Version Configuration</h3>
@@ -39,8 +41,8 @@
           <h3>Products</h3>
         </div>
       </div> 
-      <div class="row">
-        <div class="col col-lg-8">
+      <div class="row overflow-auto">
+        <div class="col col-lg-8 overflow-auto" style="height: 80%" >
           <div id="jstree_demo"></div>
         </div>
           <div class="col col-lg-4">
@@ -204,7 +206,7 @@
   </div>
 
   <script>
-      var localURL = 'https://azdo-dev.natinst.com:8443';
+      var localURL = 'https://azdo-dev.natinst.com/pmdmConnector';
       var pmdmProducts = [];
       var pmdmHardwareProducts = [];
       var dirty = false;
@@ -318,8 +320,7 @@
         "plugins" : [
           "wholerow",
           "sort"
-        ],
-        "sort" : sortByFirstAvailable
+        ]
       })
       .on("changed.jstree", function (e, data) {
         if(data.selected.length) {
@@ -493,13 +494,21 @@
       }
 
       function addAllSoftwareProducts(){
+        var toAdd = [];
+        flagDirty();
         for(id = 0; id < pmdmProducts.length; id++)
         {
-          flagDirty();
-          SoftwareProductFromPMDM(pmdmProducts[id].productId);
+          var productId = pmdmProducts[id].productId;
+
+          $.ajax({url: localURL+"/pmdmsoftwareproduct?productId="+productId, async:false, success: function(result){
+            var products = JSON.parse(result);
+            if(!productKeyExists(products.key)){
+              toAdd.push(products);
+            } 
+          }});
         }
-        $("#tags").val("");
-        $("#toAddPMDMid").val("");
+        console.log(toAdd);
+        $('#jstree_demo').jstree(true).create_node(null, toAdd);
       }
       
       function addAllHardwareProducts(){
@@ -644,6 +653,18 @@
         setDoc("products", JSON.stringify(toWrite));
       }
 
+      function saveData()
+      {
+        if(!loadedProducts){
+          // TODO Catch this better when loading
+          //alert("Products weren't loaded, please refresh and try again.");
+          //return;
+        }
+        saveProducts();
+        saveProductDetails();
+        clearDirty();
+      }
+
       function collapseTree(node){
         var tree = $('#jstree_demo').jstree(true);
         var ret = {};
@@ -657,18 +678,6 @@
           ret.children.push(collapseTree(node.children[i]));
         }
         return ret;
-      }
-
-      function saveData()
-      {
-        if(!loadedProducts){
-          // TODO Catch this better when loading
-          //alert("Products weren't loaded, please refresh and try again.");
-          //return;
-        }
-        saveProducts();
-        saveProductDetails();
-        clearDirty();
       }
 
       function populateChildNodes(node, children)
@@ -781,30 +790,6 @@
         $('#newManualProductName').focus();
         })
 
-      VSS.require(["VSS/Controls", "VSS/Controls/Menus"], function(Controls, Menus) {
-        var container = $("#menubar");
-
-        var menuItems = [
-          { id: "new-product", text: "New Product",  noIcon: true  },
-          { separator: true },
-          { id: "new-version", text: "New Version", noIcon: true },
-          { separator: true },
-          { id: "import-pmdm-software", text: "Import Software - PMDM", noIcon: true },
-          { separator: true},
-          { id: "import-pmdm-hardware", text: "Import Hardware - PMDM", noIcon: true },
-          { separator: true},
-          { id: "import-1000-software", text: "All Software ", noIcon: true },
-          { separator: true },
-          { id: "import-1000-hardware", text: "All Hardware", noIcon: true },
-          { separator: true },
-          { id: "delete-items", text: "Delete Product(s)", noIcon: true },
-          { separator: true },
-          { id: "save", text: "Save", noIcon: true },
-          { separator: true },
-          { id: "saveAll", text: "Save All", noIcon: true },
-          { separator: true }
-        ];
-
       function saveAllInOne()
       {
         var tree = $('#jstree_demo').jstree(true);
@@ -833,10 +818,50 @@
             }
           }
           fullTreeCollapsed.push(toAdd);
+
+          var products = [];
+          for(i in fullTreeCollapsed){
+                products.push({name: fullTreeCollapsed[i].name, key:fullTreeCollapsed[i].key + ";"})
+                for(x in fullTreeCollapsed[i].children){
+                    products.push({name: fullTreeCollapsed[i].name + ": " + fullTreeCollapsed[i].children[x].name, key:fullTreeCollapsed[i].key + "," + fullTreeCollapsed[i].children[x].key + ";"})
+                }
+            }
+
+            var idx = lunr(function() {
+                this.ref('index');
+                this.field('name');
+                for (i in products) {
+                    products[i].index=i;
+                    this.add(products[i]);
+                }
+            });
         }
-        console.log(fullTreeCollapsed);
-        setDoc("allproducts", JSON.stringify(fullTreeCollapsed));
+        setDoc("allproducts", JSON.stringify({idx: idx, products: fullTreeCollapsed}));
       }
+
+      VSS.require(["VSS/Controls", "VSS/Controls/Menus"], function(Controls, Menus) {
+        var container = $("#menubar");
+
+        var menuItems = [
+          { id: "new-product", text: "New Product",  noIcon: true  },
+          { separator: true },
+          { id: "new-version", text: "New Version", noIcon: true },
+          { separator: true },
+          { id: "import-pmdm-software", text: "Import Software - PMDM", noIcon: true },
+          { separator: true},
+          { id: "import-pmdm-hardware", text: "Import Hardware - PMDM", noIcon: true },
+          { separator: true},
+          { id: "import-1000-software", text: "All Software ", noIcon: true },
+          { separator: true },
+          { id: "import-1000-hardware", text: "All Hardware", noIcon: true },
+          { separator: true },
+          { id: "delete-items", text: "Delete Selected", noIcon: true },
+          { separator: true },
+          { id: "save", text: "Save", noIcon: true },
+          { separator: true },
+          { id: "deleteAll", text: "Delete All", noIcon: true },
+          { separator: true },
+        ];
 
         var menubarOptions = {
           items: menuItems,
@@ -884,9 +909,12 @@
                   break;
                 case "save":
                   saveData();
-                  break;
-                case "saveAll":
                   saveAllInOne();
+                  break;
+                case "deleteAll":
+                  setDoc("products", JSON.stringify([]));
+                  setDoc("allproducts", JSON.stringify({idx: {}, products: []}));
+                  location.reload();
                   break;
                 default:
                   alert("Unhandled action: " + command);
@@ -894,9 +922,7 @@
             }
           }
         };
-
         var menubar = Controls.create(Menus.MenuBar, container, menubarOptions);
-
     });
 
   </script>

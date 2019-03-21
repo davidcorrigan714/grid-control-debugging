@@ -5,9 +5,6 @@ interface IMultiValueControlProps {
     selected?: {name: string, key: string}[];
     width?: number;
     readOnly?: boolean;
-    placeholder?: string;
-    noResultsFoundText?: string;
-    searchingText?: string;
     onTagsChanged?: (tags: {name: string, key: string}[]) => Promise<void>;
     onAddProduct?: () => Promise<void>;
     forceValue?: boolean;
@@ -28,9 +25,9 @@ export class MultiValueControl extends React.Component<IMultiValueControlProps, 
         super(props, context);
         this.state = { focused: false, filter: "" };
     }
+
     public render() {
         const {focused} = this.state;
-
         return <div className={`multi-value-control ${focused ? "focused" : ""}`}>
             <TagPicker
                 className="tag-picker"
@@ -38,7 +35,7 @@ export class MultiValueControl extends React.Component<IMultiValueControlProps, 
                 inputProps={{
                     readOnly: this.props.readOnly,
                     width: this.props.width || 150,
-                    onFocus: () => this.setState({ focused: true }),
+                    onFocus: () => this.setState({ focused: true })
                 }}
                 onChange={this._onTagsChanged}
                 onResolveSuggestions={() => []}
@@ -60,6 +57,7 @@ export class MultiValueControl extends React.Component<IMultiValueControlProps, 
             this.props.onResize();
         }
     }
+
     private _onTagsChanged = (tags: ITag[]) => {
         if (this.props.onTagsChanged) {
             this.props.onTagsChanged(tags);

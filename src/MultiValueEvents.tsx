@@ -41,7 +41,6 @@ export class MultiValueEvents {
             options={this._tags}
             onTagsChanged={this._setTags}
             width={this._container.scrollWidth-50}
-            placeholder={tags ? "" : "No selection"}
             onResize={this._resize}
             error={error}
             onAddProduct={this.showProductSelector}
@@ -66,19 +65,23 @@ export class MultiValueEvents {
                 return registrationForm ? registrationForm.getFormData() : null;
             },
             okCallback: (result) => {
-                var found = false;
-                if(result.productKey == "" || result.productName == "")
-                    return;
-                for(var i = 0; i < this._tags.length; i++) {
-                    if (this._tags[i].key == result.productKey) {
-                        found = true;
-                        break;
+                //if(result.productKey == "" || result.productName == "")
+                    //return;
+                var x: string;
+                var results = JSON.parse(result.selectedProducts);
+                for(x in results){
+                    var found = false;
+                    for(var i = 0; i < this._tags.length; i++) {
+                        if (this._tags[i].key == results[x].key) {
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found){
+                        this._tags.push({key: results[x].key, name: results[x].name});
                     }
                 }
-                if (!found){
-                    this._tags.push({key: result.productKey, name: result.productName});
-                    this._setTags(this._tags);
-                }
+                this._setTags(this._tags);
             }
         };
 
