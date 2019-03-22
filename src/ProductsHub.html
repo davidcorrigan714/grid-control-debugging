@@ -4,13 +4,11 @@
 <script src="js/jquery-ui.min.js"></script>
 
 <script src="js/bootstrap.min.js"></script>
-<script src="js/jstree.min.js"></script>
 <script src="js/bootstrap-datepicker.min.js"></script>
 
-<link href="css/jstree/style.min.css" rel="stylesheet">
 <link href="css/bootstrap-datepicker.min.css" rel="stylesheet">
 <link href="css/bootstrap.min.css" rel="stylesheet">
-<link href="css/jquery-ui.min.css"  rel="stylesheet" >
+<link href="css/jquery-ui.min.css"  rel="stylesheet">
 
 <script src="js/lunr.min.js"></script>
 
@@ -29,12 +27,12 @@
 <body style="height: 100%">
   <div class="container">
     <div class="row">
-      <h3>NI Products Version Configuration</h3>
+      <h3>NI Products</h3>
     </div>
     <br/>
-
+    <h5><div id="error-text" style="color: red"></div></h5>
     <div id="main-container" hidden>
-      <div class="actions-control toolbar" id="menubar"></div>
+      <div class="actions-control toolbar" id="menubar" hidden></div>
       <br/>
       <div class="row">
         <div class="col col-lg-2">
@@ -43,7 +41,7 @@
       </div> 
       <div class="row overflow-auto">
         <div class="col col-lg-8 overflow-auto" style="height: 80%" >
-          <div id="jstree_demo"></div>
+          <div id="productTree"></div>
         </div>
           <div class="col col-lg-4">
             <h2 id="info-product">Selected Product</h2>
@@ -62,6 +60,7 @@
       </div>
   </div>
 
+  <div id="jstree_demo" hidden></div>
 
   <!-- TODO: Generalize/Abstract the modals -->
 
@@ -211,6 +210,147 @@
       var pmdmHardwareProducts = [];
       var dirty = false;
       var dialog;
+      var allProducts = [];
+      var grid;
+      var Grids;
+      var authorized = false;
+
+      // TODO Disable things if PMDM connection doesn't work
+
+      function addGridKeys(row, currentKey){
+        for(var i in row)
+        {
+          row[i].gridKey = currentKey;
+          currentKey += 1;
+          currentKey = addGridKeys(row[i].children,currentKey);
+        }
+        return currentKey;
+      }
+
+      function sortProducts(a,b){
+        if(typeof(a['name']) == 'undefined' || typeof(b['name']) == 'undefined'){
+          return 1;
+        }
+        if(a['name'].toUpperCase() > b['name'].toUpperCase()){
+          return 1;
+        }else{
+          return -1;
+        }
+      }
+
+      // Sorts by firstAvailable or the node name
+      function sortProductsChildren(node1, node2){
+        if('firstAvailable' in node1 && 'firstAvailable' in node2)
+        {
+          // The date string is 'YYYY-MM-DD' so we can sort by ASCII
+          if(node1.firstAvailable > node2.firstAvailable)
+          {
+            return -1;
+          }else if (node1.firstAvailable < node2.firstAvailable){
+            return 1;
+          }else{
+            if(node1.name.toLowerCase() < node2.name.toLowerCase()){
+              return 1;
+            }else{
+              return -1;
+            }
+          }
+        }else{
+          if(node1.name.toLowerCase() < node2.name.toLowerCase()){
+            return -1;
+          }else{
+            return 1;
+          }
+        }
+      }
+
+      function childrenContain(children, gridKey){
+        for(var i in children){
+          if(children[i].gridKey == gridKey){
+            return true;
+          }
+          if(childrenContain(children[i].children,gridKey))
+            return true;
+        }
+        return false;
+      }
+
+      function getRootNode(gridKey)
+      {
+        for(var i in allProducts)
+        {
+          if(allProducts[i].gridKey == gridKey){
+            return allProducts[i];
+          }
+          if(childrenContain(allProducts[i].children,gridKey))
+            return allProducts[i];
+        }
+        return -1;
+      }
+
+      function deleteItems(gridKeysToDelete){
+          var searchLen = allProducts.length;
+          for(var i = 0;i<searchLen;i++){
+            var childSearchLen = allProducts[i].children.length;
+            for(var x = 0;x<childSearchLen;x++){
+              if(gridKeysToDelete.includes(allProducts[i].children[x].gridKey)){
+                allProducts[i].children.splice(x,1);
+                x--;
+                childSearchLen--;
+              }
+            }
+            if(gridKeysToDelete.includes(allProducts[i].gridKey)){
+              allProducts.splice(i,1);
+              i--;
+              searchLen--;
+            }
+          }
+          refreshGrid();
+        }
+
+      function updateProductInfoSidebar(){
+        
+        var indices = grid.getSelectedDataIndices();
+
+        if(indices.length == 1) {
+          var rowData = grid.getRowData(indices[0]);
+          var rootNode = getRootNode(rowData.gridKey);
+
+          // Root node is the product name
+          $("#info-product").html(rootNode.name);
+
+          $("#info-key").html(rowData.key);
+          if (rowData.gridKey == rootNode.gridKey){
+            // Root Node
+            $("#info-version").html('');
+            $("#info-external-update").attr("hidden",!rootNode.imported || !authorized);
+            $("#info-date-area").attr("hidden",true);
+            if(rootNode.imported){
+              $("#info-imported").text("Imported from " + rootNode.source + ".");
+            }else{
+              $("#info-imported").text("");
+            } 
+          }else{
+            // Not the root node
+            $("#info-version").html(rowData.name);
+            $("#info-date").attr("readonly", rootNode.imported || !authorized);
+            $("#info-date").datepicker('update',rowData.firstAvailable);
+            $("#info-date-area").attr("hidden",false);
+            $("#info-imported").text("");
+            $("#info-external-update").attr("hidden",true);
+          }
+        }else{
+          ResetProductInfo();
+        }
+      }
+
+      function refreshGrid()
+      {
+        allProducts.sort(sortProducts);
+        addGridKeys(allProducts,0);
+        grid.setDataSource(new Grids.GridHierarchySource(allProducts));
+        grid.collapseAllNodes();
+      }
 
       VSS.require([
       "VSS/Controls/Dialogs"
@@ -231,36 +371,6 @@
         window.onbeforeunload = null;
       }
 
-      // Sorts by firstAvailable or the node name
-      function sortByFirstAvailable(node1, node2){
-        var tree = $("#jstree_demo").jstree(true);
-        node1 = tree.get_node(node1);
-        node2 = tree.get_node(node2)
-
-        if('firstAvailable' in node1.original)
-        {
-          // The date string is 'YYYY-MM-DD' so we can sort by ASCII
-          if(node1.original.firstAvailable > node2.original.firstAvailable)
-          {
-            return -1;
-          }else if (node1.original.firstAvailable < node2.original.firstAvailable){
-            return 1;
-          }else{
-            if(node1.text.toLowerCase() < node2.text.toLowerCase()){
-              return 1;
-            }else{
-              return -1;
-            }
-          }
-        }else{
-          if(node1.text.toLowerCase() < node2.text.toLowerCase()){
-            return -1;
-          }else{
-            return 1;
-          }
-        }
-      }
-
       var getDoc = function(file){
         return new Promise(function(resolve, reject)
         {
@@ -275,100 +385,41 @@
         });
       }
 
-      $('#jstree_demo')
-        .jstree({
-        "core" : {
-          "animation" : 0,
-          "check_callback" : true,
-          "themes" : { "stripes" : true },
-          "multiple": true,
-          "data" : function (node, cb) {
-                      if(node.id == "#"){
-                        LoadProductList(cb);
-                      }else{
-                        getDoc("product-"+node.original.key).then( function(result){
-                          var ref = $('#jstree_demo').jstree(true);
-                          var children = JSON.parse(result).children;
-                          cb.call(this,children);
-                        },
-                          function(err){
-                            console.log("Nope! " + err);
-                            cb. call(this,[]);
-                          }
-                        );
-                      }
-                    }
-        },
-        "types" : {
-          "#" : {
-            "max_children" : 200,
-            "max_depth" : 3,
-            "valid_children" : ["root"]
-          },
-          "root" : {
-            "icon" : "/static/3.3.7/assets/images/tree_icon.png",
-            "valid_children" : ["default"]
-          },
-          "default" : {
-            "valid_children" : ["default","file"]
-          },
-          "file" : {
-            "icon" : "glyphicon glyphicon-file",
-            "valid_children" : []
-          }
-        },
-        "plugins" : [
-          "wholerow",
-          "sort"
-        ]
-      })
-      .on("changed.jstree", function (e, data) {
-        if(data.selected.length) {
-          var selectedPath = data.instance.get_path(data.selected[0]);
+      VSS.require(["VSS/Controls","VSS/Controls/Grids"], function(Controls, grids) {
+        Grids = grids;
+        var container = $("#productTree");
 
-          if (selectedPath.length == 0){
-            ResetProductInfo();
-          }
+        var gridOptions = {
+          height: "100%",
+          width: "100%",
+          columns: [
+            { text: "Name", width: 500, index: "name" },
+          ]
+        };
 
-          var rootNode = treeRootNode(data.selected[0]);
-
-          // Root node is the product name
-          $("#info-product").html(rootNode.text);
-
-          // Concat the rest of the nodes
-          selectedPath.shift()
-          $("#info-version").html(selectedPath.join(" "));
-
-          $("#info-node").val(data.selected[0]);
-          var parents = data.instance.get_node(data.selected[0]).parents;
-          $("#info-key").html(data.instance.get_node(data.selected[0]).original.key);
-          if (parents.length > 1){
-            // Not the root node
-            $("#info-date").attr("readonly", data.instance.get_node(parents[parents.length - 2]).original.imported);
-            $("#info-date").datepicker('update',data.instance.get_node(data.selected[0]).original.firstAvailable);
-            $("#info-date-area").attr("hidden",false);
-            $("#info-imported").text("");
-            $("#info-external-update").attr("hidden",true);
-          }else{
-            // Root Node
-            $("#info-external-update").attr("hidden",!rootNode.original.imported);
-            $("#info-date-area").attr("hidden",true);
-            if(rootNode.original.imported){
-              $("#info-imported").text("Imported from " + rootNode.original.source + ".");
-            }else{
-              $("#info-imported").text("");
-            }
-          }
-        }
+        grid = Controls.create(grids.Grid, container, gridOptions);
+        loadGridFromDB();
       });
 
-      function treeRootNode(nodeId){
-        parents = $('#jstree_demo').jstree(true).get_node(nodeId).parents;
-        if (parents.length > 1){
-          return $('#jstree_demo').jstree(true).get_node(parents[parents.length - 2]);
-        }else{
-          return $('#jstree_demo').jstree(true).get_node(nodeId);
-        }
+      $("#productTree").bind("selectedIndexChanged",function (args) {
+        if(typeof(grid) == 'undefined') return;
+        updateProductInfoSidebar();
+      });
+
+      function loadGridFromDB(){
+        getDoc("products").then( function(result){
+            allProducts = JSON.parse(result);
+            refreshGrid();
+            $("#main-container").attr("hidden",false);
+
+            VSS.notifyLoadSucceeded();
+            checkUserAccess();
+          },
+            function(err){
+              console.log("Error loading all docs " + err);
+              cb. call(this,[]);
+            }
+          );
       }
 
       $('#info-date').datepicker({
@@ -376,7 +427,6 @@
         enableOnReadonly: false
       });
 
-      
       $('#info-date').on('changeDate', function (){
         flagDirty();
         var ref = $('#jstree_demo').jstree(true);
@@ -392,16 +442,13 @@
 
       function productKeyExists(key)
       {
-        var ref = $('#jstree_demo').jstree(true);
-        var rootNode = ref.get_node("#");
-        var found = false;
-        for(node in rootNode.children){
-          if( ref.get_node(rootNode.children[node]).original.key == key){
-            found = true;
-            break;
+        for(var i in allProducts){
+          if( allProducts[i].key == key){
+            return true;
           }
         }
-        return found;
+
+        return false;
       }
 
       function SoftwareProductFromPMDM(productId){
@@ -412,7 +459,8 @@
           if(productKeyExists(products.key)){
             alert("Product already exists.");
           }else{
-            $('#jstree_demo').jstree(true).create_node(null, products);
+            allProducts.push(products);
+            refreshGrid();
           }
         }});
       }
@@ -425,7 +473,8 @@
           if(productKeyExists(products.key)){
             alert("Product already exists.");
           }else{
-            $('#jstree_demo').jstree(true).create_node(null, products);
+            allProducts.push(products);
+            refreshGrid();
           }
         }});
       }
@@ -435,7 +484,7 @@
         pmdmProducts = JSON.parse(result);
         pmdmProducts.sort();
         var tagValues = [];
-        for(product in pmdmProducts){
+        for(var product in pmdmProducts){
           tagValues.push({label:pmdmProducts[product].name, value:pmdmProducts[product].productId})
         }
         $( "#tags" ).autocomplete({
@@ -460,7 +509,7 @@
           pmdmHardwareProducts = JSON.parse(result);
           pmdmHardwareProducts.sort();
           var tagValues = [];
-          for(product in pmdmHardwareProducts){
+          for(var product in pmdmHardwareProducts){
             tagValues.push({label:pmdmHardwareProducts[product].name, value:pmdmHardwareProducts[product].productId})
           }
           $( "#hardwareTags" ).autocomplete({
@@ -496,27 +545,35 @@
       function addAllSoftwareProducts(){
         var toAdd = [];
         flagDirty();
-        for(id = 0; id < pmdmProducts.length; id++)
+        for(var id in pmdmProducts)
         {
           var productId = pmdmProducts[id].productId;
 
           $.ajax({url: localURL+"/pmdmsoftwareproduct?productId="+productId, async:false, success: function(result){
             var products = JSON.parse(result);
             if(!productKeyExists(products.key)){
-              toAdd.push(products);
+              allProducts.push(products);
             } 
           }});
         }
-        console.log(toAdd);
-        $('#jstree_demo').jstree(true).create_node(null, toAdd);
+        refreshGrid();
       }
       
       function addAllHardwareProducts(){
-        for(id = 0; id < pmdmHardwareProducts.length; id++)
+        var toAdd = [];
+        flagDirty();
+        for(var id in pmdmHardwareProducts)
         {
-          flagDirty();
-          HardwareProductFromPMDM(pmdmHardwareProducts[id].productId);
+          var productId = pmdmHardwareProducts[id].productId;
+
+          $.ajax({url: localURL+"/pmdmhardwareproduct?productId="+productId, async:false, success: function(result){
+            var products = JSON.parse(result);
+            if(!productKeyExists(products.key)){
+              allProducts.push(products);
+            } 
+          }});
         }
+        refreshGrid();
       }
       
       function addPMDMHardwareProduct(){
@@ -540,53 +597,54 @@
           if(productKeyExists(key)){
             alert("Product already exists.")
           }else{
-            var ref = $('#jstree_demo').jstree(true);
-            ref.create_node(null, {
-              text: sanitizeProductName(product),
+            allProducts.push({
+              name: sanitizeProductName(product),
               children: [],
               imported: false,
               source: 'manual',
               key: key
             });
+            refreshGrid();
           }
         }
         $("#newManualProductName").val("");
       }
 
       function newVersionPopup(){
-        var ref = $('#jstree_demo').jstree(true);
-        if(ref.get_selected().length == 0){
+        var selected = grid.getSelectedDataIndices();
+        if(selected.length == 0){
           alert("No product selected.\n");
           return;
         }
-        if(ref.get_selected().length > 1){
+        if(selected.length > 1){
           alert("Only select one product for a new version.\n");
           return;
         }
-        if(treeRootNode(ref.get_selected()).original.imported){
+        if(getRootNode(grid.getRowData(selected[0]).gridKey).imported){
           alert("Cannot add versions to imported products.\n");
           return;
         }
 
-        $("#newProductVersionName").html("New Product Version - " + treeRootNode(ref.get_selected()).text);
+        $("#newProductVersionName").html("New Product Version - " + getRootNode(grid.getRowData(selected[0]).gridKey).name);
         $('#newProductVersionModal').modal();
-        $('#newVersionProduct').val(treeRootNode(ref.get_selected()).id);
+        $('#newVersionProduct').val(getRootNode(grid.getRowData(selected[0]).gridKey).gridKey);
       }
 
       function newVersionCompletion()
       {
         flagDirty();
-        var productNode = $('#newVersionProduct').val();
-        var ref = $('#jstree_demo').jstree(true);
+        var productNode = getRootNode($('#newVersionProduct').val());
+
         // TODO: Validate new-version-date
-        ref.deselect_all();
-        ref.select_node( ref.create_node(productNode, {
-            text: $('#newVersionName').val(),
-            children: [],
-            key: sanitizeKey($('#newVersionName').val()),
-            firstAvailable: $('#new-version-date').datepicker('getFormattedDate')
-          })
-        );
+        productNode.children.push({
+          name: $('#newVersionName').val(),
+          children: [],
+          key: sanitizeKey($('#newVersionName').val()),
+          firstAvailable: $('#new-version-date').datepicker('getFormattedDate')
+        });
+
+        productNode.children.sort(sortProductsChildren);
+        refreshGrid();
       }
 
       function sanitizeProductName(name)
@@ -615,162 +673,47 @@
         });
       }
 
-      function saveProductDetails()
-      {
-        var tree = $('#jstree_demo').jstree(true);
-        var productNodes = tree.get_node('#').children;
-        var arrayLength = productNodes.length;
-        for (var i = 0; i < arrayLength; i++) {
-          var currentNode = tree.get_node(productNodes[i]);
-          if(currentNode.state.loaded && currentNode.children.length > 0){
-            setDoc("product-"+currentNode.original.key,
-            JSON.stringify(collapseTree(productNodes[i])));
-          }
-        }
-      }
-
       function saveProducts()
       {
-        var tree = $('#jstree_demo').jstree(true);
-        var productNodes = tree.get_node('#').children;
-        var toWrite = [];
-        var arrayLength = productNodes.length;
-        for (var i = 0; i < arrayLength; i++) {
-          var node = tree.get_node(productNodes[i]);
-          var hasChildren = false;
-          if(node.state.loaded && node.children.length > 0 || !node.state.loaded){
-            hasChildren = true;
-          }
-          toWrite.push({
-            text: node.text,
-            imported: node.original.imported,
-            source: node.original.source,
-            key: node.original.key,
-            children: hasChildren,
-            areas: []
-          });
-        }
-        setDoc("products", JSON.stringify(toWrite));
+        setDoc("products", JSON.stringify(allProducts));
       }
 
       function saveData()
       {
-        if(!loadedProducts){
-          // TODO Catch this better when loading
-          //alert("Products weren't loaded, please refresh and try again.");
-          //return;
-        }
         saveProducts();
-        saveProductDetails();
         clearDirty();
-      }
-
-      function collapseTree(node){
-        var tree = $('#jstree_demo').jstree(true);
-        var ret = {};
-        var node = tree.get_node(node);
-        ret.text = node.text;
-        ret.firstAvailable = node.original.firstAvailable;
-        ret.key = node.original.key;
-        ret.children = [];
-        var arrayLength = node.children.length;
-        for (var i = 0; i < arrayLength; i++) {
-          ret.children.push(collapseTree(node.children[i]));
-        }
-        return ret;
-      }
-
-      function populateChildNodes(node, children)
-      {
-        var ref = $('#jstree_demo').jstree(true);
-        var arrayLength = children.length;
-        for (var i = 0; i < arrayLength; i++) {
-          var newNode = ref.create_node(node, {
-            text: children[i].text,
-            firstAvailable: children[i].firstAvailable,
-            key: children[i].key
-          });
-          populateChildNodes(newNode, children[i].children);
-        }
-      }
-
-      function loadProduct(product, node)
-      {
-        getDoc("product-"+product).then( function(result){
-          var ref = $('#jstree_demo').jstree(true);
-          var children = JSON.parse(result).children;
-          populateChildNodes(node, children);
-        },
-        function(err){
-          console.log("Nope! " + err);
-        }
-        );
-      }
-
-      function LoadProductList(cb){
-        getDoc('products').then(function(result)
-          {
-            var products = JSON.parse(result);
-            var ref = $('#jstree_demo').jstree(true);
-            var arrayLength = products.length;
-            var toAdd = [];
-            for (var i = 0; i < arrayLength; i++) {
-              toAdd.push({
-                text: products[i].text,
-                children: products[i].children,
-                imported: products[i].imported,
-                source: products[i].source,
-                key: products[i].key
-              });
-            }
-            cb.call(this,toAdd);
-            loadedProducts = true;
-            $("#main-container").attr("hidden",false);
-            VSS.notifyLoadSucceeded();
-          }, function(err){
-            if(err.status == 404){
-              loadedProducts = true;
-              $("#main-container").attr("hidden",false);
-              cb.call(this,[]);
-              // Not found is ok, must be a new instance
-              VSS.notifyLoadSucceeded();
-            }else{
-              alert("Error loading products: " + err);
-            }
-          }
-        );
       }
 
       function updateFromPMDM(){
         flagDirty();
-        var ref = $('#jstree_demo').jstree(true);
-        var selected = ref.get_selected();
-
+        var selected = grid.getSelectedDataIndices();
         if(selected.length != 1){
           alert("Invalid Selection\n");
           return;
         }
 
-        var rootNode = treeRootNode(selected[0]);
+        var rootNode = getRootNode(grid.getRowData(selected[0]).gridKey);
 
-        if(!rootNode.original.imported || rootNode.original.source != "pmdm"){
+        if(!rootNode.imported || rootNode.source != "pmdm"){
           alert("Product not from pmdm");
           return;
         }
 
-        var product = rootNode.original.key;
+        var product = rootNode.key;
+        var pmdmType = rootNode.key.substring(0,5);
+        var pmdmProductId = rootNode.key.substring(5);
 
-        $.ajax({url: localURL+"/pmdmsoftwareproduct?product="+product, success: function(result){
-          var products = JSON.parse(result);
-          var ref = $('#jstree_demo').jstree(true);
-          ref.delete_node(selected[0]);
-          ref.create_node(null, products);
+        if(pmdmType == "pmdms"){
+          deleteItems([rootNode.gridKey]);
+          SoftwareProductFromPMDM(pmdmProductId);
           alert("Product updated\n");
-        },
-        error: function (){
-          alert("Failed to get product from PMDM.")
+        }else if(pmdmType == "pmdmh"){
+          deleteItems([rootNode.gridKey]);
+          HardwareProductFromPMDM(pmdmProductId);
+          alert("Product updated\n");
+        }else{
+          alert("Invalid pmdm key.");
         }
-        });
       }
 
       $('#new-version-date').datepicker({
@@ -792,50 +735,31 @@
 
       function saveAllInOne()
       {
-        var tree = $('#jstree_demo').jstree(true);
-        var productNodes = tree.get_node('#').children;
-        var toWrite = [];
-        var arrayLength = productNodes.length;
         var fullTreeCollapsed = [];
-        for (var i = 0; i < arrayLength; i++) {
-          var node = tree.get_node(productNodes[i]);
-          var hasChildren = false;
-          if(node.state.loaded && node.children.length > 0 || !node.state.loaded){
-            hasChildren = true;
-          }
-          var toAdd = {
-            name: node.text,
-            key: node.original.key,
-            children: []
-          };
-          if(hasChildren){
-            for(child in node.children){
-              var childNode = tree.get_node(node.children[child]);
-              toAdd.children.push({
-                name: childNode.text,
-                key: childNode.original.key
-              });  
-            }
+        for (var i in allProducts) {
+          var toAdd = { name: allProducts[i].name, key: allProducts[i].key, children: [] };
+          for(var x in allProducts[i].children) {
+            toAdd.children.push({ name: allProducts[i].children[x].name, key: allProducts[i].children[x].key });  
           }
           fullTreeCollapsed.push(toAdd);
-
-          var products = [];
-          for(i in fullTreeCollapsed){
-                products.push({name: fullTreeCollapsed[i].name, key:fullTreeCollapsed[i].key + ";"})
-                for(x in fullTreeCollapsed[i].children){
-                    products.push({name: fullTreeCollapsed[i].name + ": " + fullTreeCollapsed[i].children[x].name, key:fullTreeCollapsed[i].key + "," + fullTreeCollapsed[i].children[x].key + ";"})
-                }
-            }
-
-            var idx = lunr(function() {
-                this.ref('index');
-                this.field('name');
-                for (i in products) {
-                    products[i].index=i;
-                    this.add(products[i]);
-                }
-            });
         }
+
+        var products = [];
+        for(var i in fullTreeCollapsed){
+          products.push({name: fullTreeCollapsed[i].name, key:fullTreeCollapsed[i].key + ";"})
+          for(var x in fullTreeCollapsed[i].children){
+              products.push({name: fullTreeCollapsed[i].name + ": " + fullTreeCollapsed[i].children[x].name, key:fullTreeCollapsed[i].key + "," + fullTreeCollapsed[i].children[x].key + ";"})
+          }
+        }
+
+        var idx = lunr(function() {
+            this.ref('index');
+            this.field('name');
+            for (i in products) {
+                products[i].index=i;
+                this.add(products[i]);
+            }
+        });
         setDoc("allproducts", JSON.stringify({idx: idx, products: fullTreeCollapsed}));
       }
 
@@ -858,9 +782,7 @@
           { id: "delete-items", text: "Delete Selected", noIcon: true },
           { separator: true },
           { id: "save", text: "Save", noIcon: true },
-          { separator: true },
-          { id: "deleteAll", text: "Delete All", noIcon: true },
-          { separator: true },
+          { separator: true }
         ];
 
         var menubarOptions = {
@@ -868,62 +790,116 @@
           executeAction: function (args) {
             var command = args.get_commandName();
             switch (command) {
-                case "new-product":
-                  $("#manualModal").modal();
-                  break;
-                case "new-version":
-                  newVersionPopup();
-                  break;
-                case "import-pmdm-software": 
-                  $("#pmdmModal").modal();
-                  break;
-                case "import-pmdm-hardware":
-                  $("#pmdmHardwareModal").modal();
-                  break;
-                case "import-1000-software":
-                  addAllSoftwareProducts();
-                  break;
-                case "import-1000-hardware":
-                  addAllHardwareProducts();
-                  break;
-                case "delete-items":
-                  flagDirty();
-                  var ref = $('#jstree_demo').jstree(true);
-                  if(ref.get_selected().length == 0){
-                    alert("No product selected.\n");
-                    return;
-                  }
-                  
-                  do {
-                    var selectedNodeId = ref.get_selected()[0];
-                    var selectedNode = ref.get_node(selectedNodeId);
-                    var rootNode = treeRootNode(selectedNodeId);
+              case "new-product":
+                $("#manualModal").modal();
+                break;
+              case "new-version":
+                newVersionPopup();
+                break;
+              case "import-pmdm-software": 
+                $("#pmdmModal").modal();
+                break;
+              case "import-pmdm-hardware":
+                $("#pmdmHardwareModal").modal();
+                break;
+              case "import-1000-software":
+                addAllSoftwareProducts();
+                break;
+              case "import-1000-hardware":
+                addAllHardwareProducts();
+                break;
+              case "delete-items":
+                var gridKeysToDelete = [];
+                var indices = grid.getSelectedDataIndices();
+                if(indices.length == 0){
+                  alert("No items selected.");
+                  return;
+                }
 
-                    // TODO: Deletion Warning
-                    if(rootNode.original.imported){
-                      ref.delete_node(rootNode.id);
-                    }else{
-                      ref.delete_node(selectedNodeId);
-                    }
-                  }while(ref.get_selected().length > 0);
-                  break;
-                case "save":
-                  saveData();
-                  saveAllInOne();
-                  break;
-                case "deleteAll":
-                  setDoc("products", JSON.stringify([]));
-                  setDoc("allproducts", JSON.stringify({idx: {}, products: []}));
-                  location.reload();
-                  break;
-                default:
-                  alert("Unhandled action: " + command);
-                  break;
+                flagDirty();
+
+                for(var i in indices){
+                  gridKeysToDelete.push( grid.getRowData(indices[i]).gridKey);
+                }
+
+                deleteItems(gridKeysToDelete);
+                break;
+              case "save":
+                saveData();
+                saveAllInOne();
+                break;
+              default:
+                alert("Unhandled action: " + command);
+                break;
             }
           }
         };
         var menubar = Controls.create(Menus.MenuBar, container, menubarOptions);
+
+        $('#newManualProductName').keypress(function(event) {
+          if (event.keyCode == 13 || event.which == 13) {
+            $("#manualModal").modal('hide');
+            newProduct();
+          }
+        });
     });
+
+    function restCall(token, url){
+      var ret;
+      $.ajax({async:false,
+          url: url ,
+          dataType: 'json',
+          async:false,
+          headers: { 'Authorization': 'Basic ' + btoa(":"+token)},
+          success: function(data, textStatus, request){
+            ret = data;
+            // TODO: Handle continuations
+            //console.log(request.getResponseHeader('X-MS-ContinuationToken'));
+          }
+      });
+        return ret;
+    }
+
+    function checkUserAccess()
+    {
+      VSS.getAccessToken().then(function(token){
+        var token = token.token;
+        var webContext = VSS.getWebContext();
+        var org = webContext.collection.name;
+        var userID = webContext.user.id;
+        var userDescriptor = '';
+        
+        var userDescriptor = restCall(token,"https://vssps.dev.azure.com/"+org+"/_apis/graph/descriptors/"+userID+"?api-version=5.0-preview.1").value;
+
+        var groups = restCall(token, "https://vssps.dev.azure.com/"+org+"/_apis/graph/groups?api-version=5.0-preview.1").value;
+        var groupName = "["+webContext.project.name+"]\\Product Administrators";
+        groupName = groupName.toUpperCase();
+        var groupDescriptor = ''
+        for(var i in groups)
+        {
+          if(groups[i].principalName.toUpperCase() == groupName)
+          {
+            groupDescriptor = groups[i].descriptor;
+            break;
+          }
+        }
+        if(groupDescriptor == '')
+        {
+          $("#error-text").html("'Product Administrators' group not found in project.");
+          return;
+        }
+        var auth = restCall(token,"https://vssps.dev.azure.com/" + org + "/_apis/graph/memberships/" + userDescriptor + "/" + groupDescriptor + "?api-version=5.0-preview.1");
+
+        if(typeof(auth) == 'undefined'){
+          // Nope
+          $("#error-text").html("You must be a member of 'Product Administrators' to edit the product database.");
+        }else{
+          //User is authorized
+          $("#menubar").attr("hidden",false);
+          authorized = true;
+        }
+      });
+    }
 
   </script>
 </body>
