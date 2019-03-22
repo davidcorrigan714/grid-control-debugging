@@ -1,6 +1,8 @@
 import Controls = require("VSS/Controls");
 import Grids = require("VSS/Controls/Grids");
 
+// Just a scratch file to use VSCode's autocomplete in a ts file
+
 var container = $(".sample-container");
 
 var source = [
