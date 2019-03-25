@@ -3,7 +3,6 @@ import * as React from "react";
 import * as ReactDOM from "react-dom";
 import { getClient } from "TFS/WorkItemTracking/RestClient";
 import { WorkItemFormService } from "TFS/WorkItemTracking/Services";
-
 import { MultiValueControl } from "./MultiValueControl";
 
 initializeIcons();
@@ -58,7 +57,7 @@ export class MultiValueEvents {
         var dialogOptions = {
             title: "Product Selection",
             width: 600,
-            height: 325,
+            height: 375,
             urlReplacementObject: {key: '1234'},
             getDialogResult: function() {
                 // Get the result from registrationForm object
@@ -69,6 +68,23 @@ export class MultiValueEvents {
                     //return;
                 var x: string;
                 var results = JSON.parse(result.selectedProducts);
+
+                VSS.getService(VSS.ServiceIds.ExtensionData).then(function(dataService) {
+                    // Prepare document first
+                    var myDoc = {
+                        id: "recent",
+                        data: results,
+                        __etag: -1 //TODO Not this
+                    };
+
+                    console.log("Saving: "+myDoc.id);
+
+                    // @ts-ignore
+                    dataService.setDocument("ProductCollection", myDoc, {scopeType: "User"}).then(function(doc) {
+                        console.log("Doc id: " + doc.id);
+                    });
+                }); 
+
                 for(x in results){
                     var found = false;
                     for(var i = 0; i < this._tags.length; i++) {

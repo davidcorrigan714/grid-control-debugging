@@ -40,10 +40,10 @@
         </div>
       </div> 
       <div class="row overflow-auto">
-        <div class="col col-lg-8 overflow-auto" style="height: 80%" >
+        <div class="col col-lg-12 overflow-auto" style="height: 80%" >
           <div id="productTree"></div>
         </div>
-          <div class="col col-lg-4">
+          <div class="col col-lg-4" hidden>
             <h2 id="info-product">Selected Product</h2>
             <h4 id="info-version">Version</h4>
             <div id="info-date-area" hidden="true">
@@ -393,7 +393,10 @@
           height: "100%",
           width: "100%",
           columns: [
-            { text: "Name", width: 500, index: "name" },
+            { text: "Name", width: 450, index: "name" },
+//            { text: "Active", width: 60, index: "active" },
+            { text: "Key", width: 120, index: "key" },
+            { text: "First Available", width: 100, index: "firstAvailable" }
           ]
         };
 
@@ -408,11 +411,14 @@
 
       function loadGridFromDB(){
         getDoc("products").then( function(result){
-            allProducts = JSON.parse(result);
+            allProducts = result;
+            console.log(result);
+            console.log(typeof(result));
             refreshGrid();
             $("#main-container").attr("hidden",false);
 
             VSS.notifyLoadSucceeded();
+
             checkUserAccess();
           },
             function(err){
@@ -428,11 +434,12 @@
       });
 
       $('#info-date').on('changeDate', function (){
+        // TODO
         flagDirty();
-        var ref = $('#jstree_demo').jstree(true);
-        var node = $('#info-node').val();
-        ref.get_node(node).original.firstAvailable = $('#info-date').datepicker('getFormattedDate');
-        ref.sort(ref.get_node(ref.get_node(node).parent).id, true);
+        // var ref = $('#jstree_demo').jstree(true);
+        // var node = $('#info-node').val();
+        // ref.get_node(node).original.firstAvailable = $('#info-date').datepicker('getFormattedDate');
+        // ref.sort(ref.get_node(ref.get_node(node).parent).id, true);
       });
 
       function ResetProductInfo(){
@@ -657,7 +664,8 @@
         return key.toLowerCase().replace(/,/g,"").replace(/;/g,"").replace(/ /g,"").replace(/&/g,"");
       }
 
-      function setDoc(file, contents, force = false){
+      function setDoc(file, contents, force){
+        force = force || false;
         var myDoc = {
             id: file,
             data: contents,
@@ -675,7 +683,7 @@
 
       function saveProducts()
       {
-        setDoc("products", JSON.stringify(allProducts));
+        setDoc("products", allProducts);
       }
 
       function saveData()
@@ -735,32 +743,36 @@
 
       function saveAllInOne()
       {
+        // n = name, k = key, c = children
         var fullTreeCollapsed = [];
         for (var i in allProducts) {
-          var toAdd = { name: allProducts[i].name, key: allProducts[i].key, children: [] };
+          var toAdd = { n: allProducts[i].name, k: allProducts[i].key, c: [] };
           for(var x in allProducts[i].children) {
-            toAdd.children.push({ name: allProducts[i].children[x].name, key: allProducts[i].children[x].key });  
+            toAdd.c.push({ n: allProducts[i].children[x].name, k: allProducts[i].children[x].key });  
           }
           fullTreeCollapsed.push(toAdd);
         }
 
+        var start = (new Date()).getTime();
+
         var products = [];
         for(var i in fullTreeCollapsed){
-          products.push({name: fullTreeCollapsed[i].name, key:fullTreeCollapsed[i].key + ";"})
-          for(var x in fullTreeCollapsed[i].children){
-              products.push({name: fullTreeCollapsed[i].name + ": " + fullTreeCollapsed[i].children[x].name, key:fullTreeCollapsed[i].key + "," + fullTreeCollapsed[i].children[x].key + ";"})
+          products.push({n: fullTreeCollapsed[i].n})
+          for(var x in fullTreeCollapsed[i].c){
+              products.push({n: fullTreeCollapsed[i].n + ": " + fullTreeCollapsed[i].c[x].n})
           }
         }
 
         var idx = lunr(function() {
-            this.ref('index');
-            this.field('name');
+            this.ref('i');
+            this.field('n');
             for (i in products) {
-                products[i].index=i;
+                products[i].i=i;
                 this.add(products[i]);
             }
         });
-        setDoc("allproducts", JSON.stringify({idx: idx, products: fullTreeCollapsed}));
+
+        setDoc("allproducts",{idx: JSON.stringify(idx), products: fullTreeCollapsed});
       }
 
       VSS.require(["VSS/Controls", "VSS/Controls/Menus"], function(Controls, Menus) {
@@ -835,13 +847,13 @@
           }
         };
         var menubar = Controls.create(Menus.MenuBar, container, menubarOptions);
+    });
 
-        $('#newManualProductName').keypress(function(event) {
-          if (event.keyCode == 13 || event.which == 13) {
-            $("#manualModal").modal('hide');
-            newProduct();
-          }
-        });
+    $('#newManualProductName').keypress(function(event) {
+      if (event.keyCode == 13 || event.which == 13) {
+        $("#manualModal").modal('hide');
+        newProduct();
+      }
     });
 
     function restCall(token, url){

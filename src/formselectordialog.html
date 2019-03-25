@@ -41,13 +41,11 @@
             return true;
         }
 
+        // Get form values
         function getFormData() {
-            // Get form values
-            return {
-                productName: $("#product-name").html(),
-                productKey: $("#key-name").html(),
-                selectedProducts:$("#selected-products").html()
-            };
+          return {
+              selectedProducts:$("#selected-products").html()
+          };
         }
 
         return {
@@ -68,29 +66,30 @@
   </script>
 </head>
 <body>
-
-  <div>
-    <!--
-    Product:</br>
-    <select id="products"></select></br></br>
-    Version:</br>
-    <select id="products-1"></select></br></br>
-    <div id="key-name" hidden="true"></div>
-    <div id="product-name"  hidden="true"></div>
-    -->
-
-    Search: <input id="searchQuery" type="text" style="width: 250 px"><br/>
-    <select id="products" size="10" style="width: 400px" multiple></select>
-    <div id="key-name" hidden="true"></div>
-    <div id="product-name"  hidden="true"></div>
-    <div id="selected-products"  hidden="true">[]</div>
+  <div id=menubar></div><br/>
+  <div id="recent-page" >
+    <select id="recent-products" size="10" style="width: 400px" multiple></select>
   </div>
+  <div id="search-page" hidden>
+    Search:  <input id="searchQuery" type="text" style="width: 250px"><br/><br/>
+    <select id="products" size="10" style="width: 400px" multiple></select>
+  </div>
+  <div id="list-page" hidden>
+    Product:</br>
+    <select id="products-1"></select></br></br>
+    Version:</br>
+    <select id="products-2"></select></br></br>
+  </div>
+  <div id="selected-products" hidden="true">[]</div>
 
   <script>
       var runLocal = false;
       var localURL = 'https://azdo-dev.natinst.com:8443';
       var products = [];
+      var flatProducts = [];
+      var recentProducts = [];
       var loadedProducts = false;
+      var idx = {};
 
       function getDoc(file, cb)
       {
@@ -113,149 +112,197 @@
         }
       }
 
-      /*
-
-      function loadData()
-      {
-          // TODO: Error handle the doc failing to load
-          getDoc('allproducts', function(result)
-            {
-              console.log(result);
-                pmdmProducts = JSON.parse(result);
-                $('#products').append("<option value=\"\"></option>");
-                for(product in pmdmProducts){
-                    $('#products').append("<option value=\"" + product + "\">" + pmdmProducts[product].name + "</option>");
-                }                   
-                updateProductDropdowns();
-                VSS.notifyLoadSucceeded();
-            }
-          );
-      }
-
-      subProducts = [];
-
       function updateProductDropdowns(){
-        var product = pmdmProducts[$('#products').val()];
-        // TODO Catch failure
-        if(typeof(product) == "undefined" || product.length == 0 || !product.children){
-          $('#products-1').empty();
+        if(typeof(products) == "undefined" || products.length == 0){
+          $('#products-2').empty();
         }else{
-          subProducts = pmdmProducts[$('#products').val()]['children'];
-          $('#products-1').empty();
-          $('#products-1').append("<option value=\"\"></option>");
-          for(product in subProducts){
-            $('#products-1').append("<option value=\"" + subProducts[product].key + "\">" + subProducts[product].name + "</option>");
-          }
-          updateLabel();
-        }
+          $('#products-2').empty();
 
+          if(typeof(products[$('#products-1').val()]) != "undefined" )
+          {
+            var subProducts = products[$('#products-1').val()].c;
+            $('#products-2').append("<option value=\"\"></option>");
+            for(var product in subProducts){
+              $('#products-2').append("<option value=\"" + subProducts[product].k + "\">" + subProducts[product].n + "</option>");
+            }
+          }
+        }
+        updateLabel();
       }
 
-      $('#products').on("change",function (){
+      $('#products-1').on("change",function (){
         updateProductDropdowns();
         updateLabel();
       });
 
-
-      $('#products-1').on("change", function () { 
+      $('#products-2').on("change", function () { 
         updateLabel();
       });
       
       function updateLabel()
       {
-        var product = pmdmProducts[$('#products').val()].key || "";
-        var version = $('#products-1').val() || "";
-        
-        var fullKey = product;
+        if(typeof(products[$('#products-1').val()]) == 'undefined'){
+          $('#selected-products').html('');
+          return;
+        }
 
-        // There's probably some fancy concise way of doing this, but it works for now.
-        if(version.length > 0)
-        {
+        var product = products[$('#products-1').val()].k || "";
+        var version = $('#products-2').val() || "";
+        var fullKey = product;
+        if(version.length > 0) {
           fullKey = fullKey + "," + version;
         }
 
-        $('#key-name').html(fullKey);
-        $('#product-name').html(($('#products option:selected').text() + ' ' + $('#products-1 option:selected').text()).trim());
+        var fullName = ($('#products-1 option:selected').text() + ': ' + $('#products-2 option:selected').text()).trim()
+
+        $('#selected-products').html( JSON.stringify([{name:fullName,key:fullKey}]));
       }
 
-      loadData();
-*/
-      
-      var idx = {};
+      function deltaTime(time){
+        return (new Date()).getTime() - time;
+      }
 
-      /*
       function LoadProductList(cb){
-        console.log("Begin Loading " + (new Date()).getTime());
+        var start = (new Date()).getTime();
         getDoc('allproducts', function(result)
             {
-            console.log("got products " + (new Date()).getTime());
-            var productList = JSON.parse(result);
-            products = [];
+            products = result.products;
+            flatProducts = [];
 
-            for(i in productList){
-                products.push({name: productList[i].name, key:productList[i].key + ";"})
-                for(x in productList[i].children){
-                    products.push({name: productList[i].name + ": " + productList[i].children[x].name, key:productList[i].key + "," + productList[i].children[x].key + ";"})
+            $('#products-1').append("<option value=\"\"></option>");
+
+            for(var i in products){
+                $('#products-1').append("<option value=\"" + i + "\">" + products[i].n + "</option>");
+                flatProducts.push({name: products[i].n, key:products[i].k + ";"})
+                for(x in products[i].c){
+                  flatProducts.push({name: products[i].n + ": " + products[i].c[x].n, key:products[i].k + "," + products[i].c[x].k + ";"})
                 }
             }
 
-            idx = lunr(function() {
-                this.ref('index');
-                this.field('name');
-                for (i in products) {
-                    products[i].index=i;
-                    this.add(products[i]);
-                }
-            });
-            console.log("Built index " + (new Date()).getTime());
+            updateProductDropdowns();
+
+            idx = lunr.Index.load(JSON.parse(result.idx));
+            
+            console.log("Load Time: " + ((new Date()).getTime() - start) + " millis");
+
             VSS.notifyLoadSucceeded();
           }, function(err){
             console.log("Error loading products");
           }
         );
-      }*/
+      }
 
-      function LoadProductList(cb){
-        console.log("Begin Loading " + (new Date()).getTime());
-        getDoc('allproducts', function(result)
-            {
-            console.log("got products " + (new Date()).getTime());
-            var productList = JSON.parse(result).products;
-            products = [];
-
-            for(i in productList){
-                products.push({name: productList[i].name, key:productList[i].key + ";"})
-                for(x in productList[i].children){
-                    products.push({name: productList[i].name + ": " + productList[i].children[x].name, key:productList[i].key + "," + productList[i].children[x].key + ";"})
-                }
-            }
-
-            idx = lunr.Index.load(JSON.parse(result).idx);
-            console.log("Built index " + (new Date()).getTime());
-            VSS.notifyLoadSucceeded();
-          }, function(err){
-            console.log("Error loading products");
+      function resultsSort(a, b)
+      {
+        if (a.score == b.score){
+          // Using the ref index coorelates it to firstAvailable to some extent
+          if(a.ref > b.ref){
+            return 1;
+          }else{
+            return -1
           }
-        );
+        }
+        else if(a.score > b.score){
+          return -1;
+        }else{
+          return 1;
+        }
       }
 
       $("#searchQuery").on('input',function (){
         $("#products").empty();
         var results = idx.search($(this).val());
-        for(i in results){
-            $("#products").append("<option value=\"" + results[i].ref + "\">" + products[results[i].ref].name + "</option>")
+        results.sort(resultsSort);
+
+        var length = results.length;
+        if(length > 100){
+          length = 100;
+        }
+
+        for(var i = 0;i<length;i++){
+          $("#products").append("<option value=\"" + results[i].ref + "\">" + flatProducts[results[i].ref].name + "</option>")
         }
       });
 
       $("#products").on('change', function(){
         var selectedProducts = [];
-        for(i in $("#products").val()){
-          selectedProducts.push({name: products[$("#products").val()[i]].name,key: products[$("#products").val()[i]].key})
+        for(var i in $("#products").val()){
+          selectedProducts.push({name: flatProducts[$("#products").val()[i]].name,key: flatProducts[$("#products").val()[i]].key})
         }
         $("#selected-products").html(JSON.stringify(selectedProducts));
       });
 
-      LoadProductList();
+      $("#recent-products").on('change', function(){
+        var selectedProducts = [];
+        console.log($("#recent-products").val());
+        console.log( $("#recent-products").text());
+        for(var i in $("#recent-products").val()){
+          selectedProducts.push({name: $("#recent-products").text()[i],key: $("#recent-products").val()[i]})
+        }
+        console.log(selectedProducts);
+        $("#selected-products").html(JSON.stringify(selectedProducts));
+      });
+
+      VSS.require(["VSS/Controls", "VSS/Controls/Menus"], function(Controls, Menus) {
+        var container = $("#menubar");
+
+        var menuItems = [
+          { id: "recent", text: "Recent",  noIcon: true  },
+          { separator: true },
+          { id: "search", text: "Search", noIcon: true },
+          { separator: true },
+          { id: "list", text: "List", noIcon: true },
+        ];
+
+        var menubarOptions = {
+          items: menuItems,
+          executeAction: function (args) {
+            var command = args.get_commandName();
+            switch (command) {
+              case "recent":
+                $("#recent-page").attr("hidden", false);
+                $("#search-page").attr("hidden", true);
+                $("#list-page").attr("hidden", true);
+                $('#selected-products').html("");
+                break;
+              case "search":
+                $("#recent-page").attr("hidden", true);
+                $("#search-page").attr("hidden", false);
+                $("#list-page").attr("hidden", true);
+                $('#selected-products').html("");
+                break;
+              case "list":
+                $("#recent-page").attr("hidden", true);
+                $("#search-page").attr("hidden", true);
+                $("#list-page").attr("hidden", false);
+                $('#selected-products').html("");
+                break;
+              default:
+                alert("Unhandled action: " + command);
+                break;
+            }
+          }
+        };
+        var menubar = Controls.create(Menus.MenuBar, container, menubarOptions);
+    });
+
+    function LoadRecents(){
+      VSS.getService(VSS.ServiceIds.ExtensionData).then(function(dataService) {
+        recentProducts = [];
+        // Get document by id
+        dataService.getDocument("ProductCollection", "recent", {scopeType: "User"}).then(function(file) {
+          $("#recent-products").empty();
+          for(var i in file.data){
+            $('#recent-products').append("<option value=\"" + file.data[i].key + "\">" + file.data[i].name + "</option>");
+          }
+        }, function (err){
+          console.log(err);
+        });
+      });
+    }
+
+    LoadProductList();
+    LoadRecents();
   </script>
 </body>
 </html>
