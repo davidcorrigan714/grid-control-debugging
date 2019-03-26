@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+
+<head>
+  <script src="libs/VSS.SDK.min.js"></script>
+
+<script>
+    VSS.init({
+      explicitNotifyLoaded: true,
+      usePlatformScripts: true,
+    });
+    VSS.require(["dist/src/productsservice"],
+    function () {
+      VSS.notifyLoadSucceeded();
+    });
+  </script>
+</head>
+</html>

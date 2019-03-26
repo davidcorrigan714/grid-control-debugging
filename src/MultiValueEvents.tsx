@@ -69,22 +69,6 @@ export class MultiValueEvents {
                 var x: string;
                 var results = JSON.parse(result.selectedProducts);
 
-                VSS.getService(VSS.ServiceIds.ExtensionData).then(function(dataService) {
-                    // Prepare document first
-                    var myDoc = {
-                        id: "recent",
-                        data: results,
-                        __etag: -1 //TODO Not this
-                    };
-
-                    console.log("Saving: "+myDoc.id);
-
-                    // @ts-ignore
-                    dataService.setDocument("ProductCollection", myDoc, {scopeType: "User"}).then(function(doc) {
-                        console.log("Doc id: " + doc.id);
-                    });
-                }); 
-
                 for(x in results){
                     var found = false;
                     for(var i = 0; i < this._tags.length; i++) {
@@ -97,6 +81,17 @@ export class MultiValueEvents {
                         this._tags.push({key: results[x].key, name: results[x].name});
                     }
                 }
+
+                //TODO: Generalize this:
+                //var extensionCtx = VSS.getExtensionContext();
+                //var contributionId = extensionCtx.publisherId + "." + extensionCtx.extensionId + ".form-products-service";
+                var contributionId = "davidcorrigan2.vsts-extensions-product-selector-dev.form-products-service";
+                    VSS.getServiceContribution(contributionId).then( function (contributionObj){
+                        contributionObj.getInstance().then(function (instanceObj: any){ // TODO Get type from other ts file (?)
+                        instanceObj.updateRecentProducts(results);
+                    });
+                });
+
                 this._setTags(this._tags);
             }
         };

@@ -6,7 +6,8 @@ var CopyWebpackPlugin = require('copy-webpack-plugin');
 module.exports = {
     target: "web",
     entry: {
-        multivalue: "./src/multivalue.ts"
+        multivalue: "./src/multivalue.ts",
+        productsservice: "./src/productsservice.ts"
     },
     output: {
         filename: "src/[name].js",
@@ -55,7 +56,7 @@ module.exports = {
             { from: "./src/productselector.html", to: "./" },
             { from: "./src/formselectordialog.html", to: "./" },
             { from: "./src/productshub.html", to: "./" },
-            { from: "./src/addPMDMSoftwareProduct.html", to: "./" }
+            { from: "./src/productsservice.html", to: "./"}
         ])
     ]
 }

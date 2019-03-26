@@ -162,36 +162,6 @@
         return (new Date()).getTime() - time;
       }
 
-      function LoadProductList(cb){
-        var start = (new Date()).getTime();
-        getDoc('allproducts', function(result)
-            {
-            products = result.products;
-            flatProducts = [];
-
-            $('#products-1').append("<option value=\"\"></option>");
-
-            for(var i in products){
-                $('#products-1').append("<option value=\"" + i + "\">" + products[i].n + "</option>");
-                flatProducts.push({name: products[i].n, key:products[i].k + ";"})
-                for(x in products[i].c){
-                  flatProducts.push({name: products[i].n + ": " + products[i].c[x].n, key:products[i].k + "," + products[i].c[x].k + ";"})
-                }
-            }
-
-            updateProductDropdowns();
-
-            idx = lunr.Index.load(JSON.parse(result.idx));
-            
-            console.log("Load Time: " + ((new Date()).getTime() - start) + " millis");
-
-            VSS.notifyLoadSucceeded();
-          }, function(err){
-            console.log("Error loading products");
-          }
-        );
-      }
-
       function resultsSort(a, b)
       {
         if (a.score == b.score){
@@ -234,12 +204,9 @@
 
       $("#recent-products").on('change', function(){
         var selectedProducts = [];
-        console.log($("#recent-products").val());
-        console.log( $("#recent-products").text());
         for(var i in $("#recent-products").val()){
-          selectedProducts.push({name: $("#recent-products").text()[i],key: $("#recent-products").val()[i]})
+          selectedProducts.push({name: recentProducts[$("#recent-products").val()[i]].name,key:recentProducts[$("#recent-products").val()[i]].key})
         }
-        console.log(selectedProducts);
         $("#selected-products").html(JSON.stringify(selectedProducts));
       });
 
@@ -301,8 +268,37 @@
       });
     }
 
-    LoadProductList();
-    LoadRecents();
+    var start2 = (new Date()).getTime();
+    //var extensionCtx = VSS.getExtensionContext();
+    //var contributionId = extensionCtx.publisherId + "." + extensionCtx.extensionId + ".form-products-service";
+    var contributionId = "davidcorrigan2.vsts-extensions-product-selector-dev.form-products-service";
+    var test = VSS.getServiceContribution(contributionId).then( function (contributionObj){
+      contributionObj.getInstance().then(function (instanceObj){
+        instanceObj.getProductDB().then(function (productDB){
+          products = productDB.productTree;
+          flatProducts = productDB.flatProducts;
+          recentProducts = productDB.recentProducts;
+
+          $("#recent-products").empty();
+          for(var i in recentProducts){
+            $('#recent-products').append("<option value=\"" + i + "\">" + recentProducts[i].name + "</option>");
+          }
+
+          $('#products-1').append("<option value=\"\"></option>");
+
+          for(var i in products){
+              $('#products-1').append("<option value=\"" + i + "\">" + products[i].n + "</option>");
+          }
+
+          updateProductDropdowns();
+
+          idx = lunr.Index.load(JSON.parse(productDB.productIdx));
+
+          console.log("Loaded in: " + ((new Date()).getTime() - start2));
+          VSS.notifyLoadSucceeded();
+        });
+      });
+    });
   </script>
 </body>
 </html>
