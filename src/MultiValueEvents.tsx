@@ -52,24 +52,21 @@ export class MultiValueEvents {
     }
 
     private showProductSelector = (): Promise<void> => {
-        var registrationForm;
+        var selectorForm;
 
-        var dialogOptions = {
+        var dialogOptions : IHostDialogOptions = {
             title: "Product Selection",
             width: 600,
             height: 375,
-            urlReplacementObject: {key: '1234'},
+            //urlReplacementObject: {key: '1234'},
             getDialogResult: function() {
-                // Get the result from registrationForm object
-                return registrationForm ? registrationForm.getFormData() : null;
+                // Get the result from selectorForm object
+                return selectorForm ? selectorForm.getFormData() : null;
             },
             okCallback: (result) => {
-                //if(result.productKey == "" || result.productName == "")
-                    //return;
-                var x: string;
-                var results = JSON.parse(result.selectedProducts);
+                var results = JSON.parse(result);
 
-                for(x in results){
+                for(var x in results){
                     var found = false;
                     for(var i = 0; i < this._tags.length; i++) {
                         if (this._tags[i].key == results[x].key) {
@@ -82,12 +79,10 @@ export class MultiValueEvents {
                     }
                 }
 
-                //TODO: Generalize this:
-                //var extensionCtx = VSS.getExtensionContext();
-                //var contributionId = extensionCtx.publisherId + "." + extensionCtx.extensionId + ".form-products-service";
-                var contributionId = "davidcorrigan2.vsts-extensions-product-selector-dev.form-products-service";
-                    VSS.getServiceContribution(contributionId).then( function (contributionObj){
-                        contributionObj.getInstance().then(function (instanceObj: any){ // TODO Get type from other ts file (?)
+                var extensionCtx = VSS.getExtensionContext();
+                var contributionId = extensionCtx.publisherId + "." + extensionCtx.extensionId + ".form-products-service";
+                VSS.getServiceContribution(contributionId).then( function (contributionObj){
+                    contributionObj.getInstance().then(function (instanceObj: any){ // TODO Get type from other ts file (?)
                         instanceObj.updateRecentProducts(results);
                     });
                 });
@@ -101,19 +96,9 @@ export class MultiValueEvents {
 
         VSS.getService<IHostDialogService>(VSS.ServiceIds.Dialog).then((dialogService) => {
             dialogService.openDialog(contributionId,dialogOptions).then((dialog) => {
-                dialog.getContributionInstance("form-selector-dialog").then((dialogInstance) => {
-
-                    registrationForm = dialogInstance;
-
-                    // Subscribe to form input changes and update the Ok enabled state
-                    registrationForm.attachFormChanged((isValid) => {
-                        dialog.updateOkButton(isValid);
-                    });
-
-                    // Set the initial ok enabled state
-                    registrationForm.isFormValid().then((isValid) => {
-                        dialog.updateOkButton(isValid);
-                    });
+                dialog.getContributionInstance("form-selector-dialog").then(function (selectorFormInstance) {
+                    dialog.updateOkButton(true);
+                    selectorForm = selectorFormInstance;
                 });
             });
         });

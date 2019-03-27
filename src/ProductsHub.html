@@ -63,8 +63,6 @@
       </div>
   </div>
 
-  <div id="jstree_demo" hidden></div>
-
   <!-- TODO: Generalize/Abstract the modals -->
 
   <!-- Modal -->
@@ -379,7 +377,7 @@
         {
           VSS.getService(VSS.ServiceIds.ExtensionData).then(function(dataService) {
               // Get document by id
-              dataService.getDocument("ProductCollection", file).then(function(file) {
+              dataService.getDocument(VSS.getWebContext().project.id, file).then(function(file) {
                 resolve(file.data);
               }, function (err){
                 reject(err); // test for err.status == 404
@@ -415,8 +413,6 @@
       function loadGridFromDB(){
         getDoc("products").then( function(result){
             allProducts = result;
-            console.log(result);
-            console.log(typeof(result));
             refreshGrid();
             $("#main-container").attr("hidden",false);
 
@@ -425,8 +421,17 @@
             checkUserAccess();
           },
             function(err){
-              console.log("Error loading all docs " + err);
-              cb. call(this,[]);
+              if(err.status == 404){
+                allProducts = [];
+                refreshGrid();
+                $("#main-container").attr("hidden",false);
+
+                VSS.notifyLoadSucceeded();
+
+                checkUserAccess();
+              }else{
+                console.log("Error loading all docs " + JSON.stringify(err));
+              }
             }
           );
       }
@@ -676,7 +681,7 @@
           };
 
         VSS.getService(VSS.ServiceIds.ExtensionData).then(function(dataService) {
-          dataService.setDocument("ProductCollection", myDoc).then(function(doc) {
+          dataService.setDocument(VSS.getWebContext().project.id, myDoc).then(function(doc) {
 
           }, function (err){
             alert("Error setting document"+file+"on remote serner.");

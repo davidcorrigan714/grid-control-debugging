@@ -35,7 +35,7 @@ function getDoc(file: string) : Promise<any>
     return new Promise<any>((resolve, reject) => {
         VSS.getService(VSS.ServiceIds.ExtensionData).then(function(dataService: IExtensionDataService) {
             // Get document by id
-            dataService.getDocument("ProductCollection", file).then(function(file) {
+            dataService.getDocument(VSS.getWebContext().project.id, file).then(function(file) {
               resolve(file.data);
             }, function (err){
               reject(err);
@@ -48,24 +48,29 @@ function load() : Promise<{recentProducts: Array<productEntryI>, productTree: Ar
 {
     return new Promise<any>((resolve , reject) => {
         Promise.all([getDoc('allproducts'),VSS.getService(VSS.ServiceIds.ExtensionData) ]).then((results:[allProductsDocI,IExtensionDataService]) => {
-            return Promise.all([results, results[1].getDocument("ProductCollection", "recent", {scopeType: "User"})]).then ((results:[[allProductsDocI,IExtensionDataService],any]) =>{
-                var data = results[0][0];
-                //var dataService: IExtensionDataService = results[0][1];
-                let recentProducts: Array<productEntryI> = results[1].data;
-                let productTree: Array<productTreeI> = data.products;
-                let flatProducts: Array<flatProductTreeI> = [];
-                let productIdx: string  = data.idx;
-    
-                for(var i in productTree){
-                    if(productTree[i]){
-                        flatProducts.push({name: productTree[i].n, key:productTree[i].k + ";", children: []})
-                        for(var x in productTree[i].c){
-                            flatProducts.push({name: productTree[i].n + ": " + productTree[i].c[x].n, key:productTree[i].k + "," + productTree[i].c[x].k + ";", children: []})
-                        }
+            var data = results[0];
+            let productTree: Array<productTreeI> = data.products;
+            let flatProducts: Array<flatProductTreeI> = [];
+            let productIdx: string  = data.idx;
+
+            for(var i in productTree){
+                if(productTree[i]){
+                    flatProducts.push({name: productTree[i].n, key:productTree[i].k + ";", children: []})
+                    for(var x in productTree[i].c){
+                        flatProducts.push({name: productTree[i].n + ": " + productTree[i].c[x].n, key:productTree[i].k + "," + productTree[i].c[x].k, children: []})
                     }
                 }
+            }
+
+            results[1].getDocument(VSS.getWebContext().project.id, "recent", {scopeType: "User"}).then ((recents) =>{
+                let recentProducts: Array<productEntryI> = recents.data;
                 resolve({recentProducts: recentProducts, productTree: productTree, flatProducts: flatProducts, productIdx: productIdx});
-            });
+            }, () => {
+                // Getting recent failed, which is fine
+                resolve({recentProducts: [], productTree: productTree, flatProducts: flatProducts, productIdx: productIdx});
+            }
+
+            );
         });
     });
 }
@@ -89,7 +94,7 @@ function saveRecentProducts()
         };
 
         // TODO error catch
-        dataService.setDocument("ProductCollection", myDoc, {scopeType: "User"});
+        dataService.setDocument(VSS.getWebContext().project.id, myDoc, {scopeType: "User"});
     }); 
 }
 

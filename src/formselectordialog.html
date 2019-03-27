@@ -7,56 +7,12 @@
   <script src="libs/VSS.SDK.min.js"></script>
   <script>
     // Sets up the initial handshake with the host frame
-    VSS.init({applyTheme: true, explicitNotifyLoaded: true});
-
-    // http://www.jquerybyexample.net/2012/06/get-url-parameters-using-jquery.html
-    function GetURLParameter(sParam)
-    {
-      var sPageURL = window.location.search.substring(1);
-      var sURLVariables = sPageURL.split('&');
-      for (var i = 0; i < sURLVariables.length; i++)
-      {
-        var sParameterName = sURLVariables[i].split('=');
-        if (sParameterName[0] == sParam)
-        {
-            return sParameterName[1];
-        }
-      }
-    }
-
-    var initialProduct = GetURLParameter('key');
+    VSS.init({applyTheme: true, explicitNotifyLoaded: true, usePlatformScripts: true});
 
     var selectorDialog = (function(id) {
-        var callbacks = [];
-
-        function inputChanged() {
-            // Execute registered callbacks
-            for(var i = 0; i < callbacks.length; i++) {
-                callbacks[i](isValid());
-            }
-        }
-
-        function isValid() {
-            // Check whether form is valid or not
-            return true;
-        }
-
-        // Get form values
-        function getFormData() {
-          return {
-              selectedProducts:$("#selected-products").html()
-          };
-        }
-
         return {
-            isFormValid: function() {
-                return isValid();   
-            },
             getFormData: function() {
-                return getFormData();
-            },
-            attachFormChanged: function(cb) {
-                  callbacks.push(cb);
+              return $("#selected-products").html();
             }
         };
     })();
@@ -121,10 +77,11 @@
           if(typeof(products[$('#products-1').val()]) != "undefined" )
           {
             var subProducts = products[$('#products-1').val()].c;
-            $('#products-2').append("<option value=\"\"></option>");
+            var products2 = "<option value=\"\"></option>";
             for(var product in subProducts){
-              $('#products-2').append("<option value=\"" + subProducts[product].k + "\">" + subProducts[product].n + "</option>");
+              products2 += "<option value=\"" + subProducts[product].k + "\">" + subProducts[product].n + "</option>";
             }
+            $('#products-2').append(products2);
           }
         }
         updateLabel();
@@ -267,38 +224,41 @@
         });
       });
     }
+   
+    function loadData(){
+      var start2 = (new Date()).getTime();
+      var extensionCtx = VSS.getExtensionContext();
+      var contributionId = extensionCtx.publisherId + "." + extensionCtx.extensionId + ".form-products-service";
+      VSS.getServiceContribution(contributionId).then( function (contributionObj){
+        contributionObj.getInstance().then(function (instanceObj){
+          instanceObj.getProductDB().then(function (productDB){
+            products = productDB.productTree;
+            flatProducts = productDB.flatProducts;
+            recentProducts = productDB.recentProducts;
 
-    var start2 = (new Date()).getTime();
-    //var extensionCtx = VSS.getExtensionContext();
-    //var contributionId = extensionCtx.publisherId + "." + extensionCtx.extensionId + ".form-products-service";
-    var contributionId = "davidcorrigan2.vsts-extensions-product-selector-dev.form-products-service";
-    var test = VSS.getServiceContribution(contributionId).then( function (contributionObj){
-      contributionObj.getInstance().then(function (instanceObj){
-        instanceObj.getProductDB().then(function (productDB){
-          products = productDB.productTree;
-          flatProducts = productDB.flatProducts;
-          recentProducts = productDB.recentProducts;
+            var recentDropdown = "";
+            for(var i in recentProducts){
+              recentDropdown += "<option value=\"" + i + "\">" + recentProducts[i].name + "</option>";
+            }
+            $('#recent-products').append(recentDropdown);
 
-          $("#recent-products").empty();
-          for(var i in recentProducts){
-            $('#recent-products').append("<option value=\"" + i + "\">" + recentProducts[i].name + "</option>");
-          }
+            var productsDropDown = "<option value=\"\"></option>";
+            for(var i in products){
+              productsDropDown += "<option value=\"" + i + "\">" + products[i].n + "</option>";
+            }
+            $('#products-1').append(productsDropDown);
 
-          $('#products-1').append("<option value=\"\"></option>");
+            updateProductDropdowns();
 
-          for(var i in products){
-              $('#products-1').append("<option value=\"" + i + "\">" + products[i].n + "</option>");
-          }
+            VSS.notifyLoadSucceeded();
 
-          updateProductDropdowns();
-
-          idx = lunr.Index.load(JSON.parse(productDB.productIdx));
-
-          console.log("Loaded in: " + ((new Date()).getTime() - start2));
-          VSS.notifyLoadSucceeded();
+            idx = lunr.Index.load(JSON.parse(productDB.productIdx));
+          });
         });
       });
-    });
+    }
+
+    VSS.ready(loadData);
   </script>
 </body>
 </html>
