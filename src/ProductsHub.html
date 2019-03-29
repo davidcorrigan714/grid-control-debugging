@@ -12,8 +12,8 @@
 
 <script src="js/lunr.min.js"></script>
 
-  <!-- for ie -->
-  <script src="https://www.promisejs.org/polyfills/promise-6.1.0.js"></script>
+<!-- for ie -->
+<script src="https://www.promisejs.org/polyfills/promise-6.1.0.js"></script>
 
 <head>
   <script src="libs/VSS.SDK.min.js"></script>
@@ -43,7 +43,7 @@
         </div>
       </div> 
       <div class="row overflow-auto">
-        <div class="col col-lg-12 overflow-auto" style="height: 80%" >
+        <div class="col col-lg-12 overflow-auto" style="height: 75%" >
           <div id="productTree"></div>
         </div>
           <div class="col col-lg-4" hidden>
@@ -88,7 +88,7 @@
         </div>
         <div class="modal-footer">
           <button type="button" data-dismiss="modal">Cancel</button>
-          <button type="button" onClick="newProduct()" data-dismiss="modal" >Add Product</button>
+          <button type="button" id="new-manual-product-ok" onClick="newProductCompletion()" data-dismiss="modal" >Add Product</button>
         </div>
       </div>
     </div>
@@ -108,13 +108,19 @@
         <div class="modal-body">
           <div class="container">
             <div class="row">
-              <div class="ui-widget">
-              <label for="newVersionName">Version Name:</label>
-              <input id="newVersionName">
+              <div class="col col-sm-4">
+                <label for="newVersionName">Version Name:</label>
+              </div>
+              <div class="col col-sm-2"></div>
+              <div class="col col-sm-4">
+                First Available:
               </div>
             </div>
             <div class="row">
-              First Available:
+              <div class="col col-sm-4">
+                <input id="newVersionName">
+              </div>
+              <div class="col col-sm-2"></div>
               <div class="col col-sm-4">
                 <input type="text" id="new-version-date" class="form-control"></input>
               </div>
@@ -209,14 +215,24 @@
       var localURL = 'https://azdo-dev.natinst.com/pmdmConnector';
       var pmdmProducts = [];
       var pmdmHardwareProducts = [];
-      var dirty = false;
       var dialog;
       var allProducts = [];
       var grid;
       var Grids;
       var authorized = false;
 
+      VSS.require(["VSS/Controls/Dialogs"], function (Dialogs) {
+        dialog = Dialogs
+      });
+
       // TODO Disable things if PMDM connection doesn't work
+
+      function setAllActive(nodes){
+        for(var i in nodes){
+          nodes[i].active = true;
+          setAllActive(nodes[i].children);
+        }
+      }
 
       function addGridKeys(row, currentKey){
         for(var i in row)
@@ -289,6 +305,21 @@
         return -1;
       }
 
+      function getNode(gridKey, node)
+      {
+        for(var i in node)
+        {
+          if(node[i].gridKey == gridKey){
+            return node[i];
+          }
+          var node2 = getNode(gridKey, node[i].children);
+          if(node2){
+            return node2;
+          }
+        }
+        return null;
+      }
+
       function deleteItems(gridKeysToDelete){
           var searchLen = allProducts.length;
           for(var i = 0;i<searchLen;i++){
@@ -310,7 +341,6 @@
         }
 
       function updateProductInfoSidebar(){
-        
         var indices = grid.getSelectedDataIndices();
 
         if(indices.length == 1) {
@@ -353,22 +383,14 @@
         grid.collapseAllNodes();
       }
 
-      VSS.require([
-      "VSS/Controls/Dialogs"
-      ], function (Dialogs) {
-        dialog = Dialogs
-      });
-
       function flagDirty()
       {
-        dirty = true;
         window.onbeforeunload = function() {
           return "Are you sure you want to navigate away?";
         }
       }
 
       function clearDirty(){
-        dirty = false;
         window.onbeforeunload = null;
       }
 
@@ -387,23 +409,86 @@
       }
 
       VSS.require(["VSS/Controls","VSS/Controls/Grids"], function(Controls, grids) {
+        console.log("Creating a grid!");
         Grids = grids;
         var container = $("#productTree");
 
         var gridOptions = {
+          allowTextSelection: true,
           height: "100%",
           width: "100%",
           columns: [
             { text: "Name", width: 450, index: "name" },
-//            { text: "Active", width: 60, index: "active" },
-            { text: "Key", width: 120, index: "key" },
-            { text: "First Available", width: 100, index: "firstAvailable" }
+            { text: "Source", width: 60,
+              getCellContents: function (rowInfo, dataIndex, expandedState, level, column, indentIndex, columnOrder)  {
+                var node = grid.getRowData(rowInfo.dataIndex);
+                var root = getRootNode(node.gridKey);
+                var divStuff = "role='row' style='width:"+column.width+"px' class='grid-cell'";
+                if(node == root){
+                  return $("<div "+divStuff+" class='grid-cell'>"+node.source+"</div>");
+                }else{
+                  return $("<div "+divStuff+" class='grid-cell'></div>");
+                }
+              }
+            },
+            { text: "Active", width: 60, getCellContents: function  (rowInfo, dataIndex, expandedState, level, column, indentIndex, columnOrder)  {
+                var node = grid.getRowData(rowInfo.dataIndex);
+                var divStuff = "role='row' style='width:"+column.width+"px' class='grid-cell'";
+                if('active' in node && node.active){
+                  return $("<div "+divStuff+"><a href='#' onClick='toggleActive("+node.gridKey+")'>Y</a></div>");
+                }else{
+                  return $("<div "+divStuff+"><a href='#' onClick='toggleActive("+node.gridKey+")'>N</a></div>");
+                }
+              }
+            },
+//            { text: "Key", width: 120, index: "key" },
+            { text: "First Available", width: 100,
+              getCellContents: function (rowInfo, dataIndex, expandedState, level, column, indentIndex, columnOrder)  {
+                var node = grid.getRowData(rowInfo.dataIndex);
+                var root = getRootNode(node.gridKey);
+                var divStuff = "role='row' style='width:"+column.width+"px' class='grid-cell'";
+                if(node != root){
+                  if(root.imported){
+                    if('firstAvailable' in node){
+                      return $("<div "+divStuff+">"+node.firstAvailable+"</div>");
+                    }else{
+                      return $("<div "+divStuff+"></div>");
+                    }
+                  }else{
+                    if('firstAvailable' in node){
+                      return $("<div "+divStuff+"><a href='#' onClick='setDate("+node.gridKey+");'>"+node.firstAvailable+"</a></div>");
+                    }else{
+                      return $("<div "+divStuff+"><a href='#' onClick='setDate("+node.gridKey+");'); return false;'>Set Date</a></div");
+                    }
+                  }
+                }else{
+                  return $("<div "+divStuff+"></div>");
+                }
+              }
+            }
           ]
         };
 
         grid = Controls.create(grids.Grid, container, gridOptions);
         loadGridFromDB();
       });
+
+      function toggleActive(dataIndex)
+      {
+        var node = getNode(dataIndex, allProducts);
+        if('active' in node){
+          node.active = !node.active;
+        }else{
+          node.active = true;
+        }
+        grid.redraw();
+      }
+
+      function setDate(dataIndex)
+      {
+        console.log("Date: " + dataIndex);
+        return false;
+      }
 
       $("#productTree").bind("selectedIndexChanged",function (args) {
         if(typeof(grid) == 'undefined') return;
@@ -412,28 +497,28 @@
 
       function loadGridFromDB(){
         getDoc("products").then( function(result){
-            allProducts = result;
-            refreshGrid();
-            $("#main-container").attr("hidden",false);
+          allProducts = result;
+          refreshGrid();
+          $("#main-container").attr("hidden",false);
 
-            VSS.notifyLoadSucceeded();
+          VSS.notifyLoadSucceeded();
 
-            checkUserAccess();
-          },
-            function(err){
-              if(err.status == 404){
-                allProducts = [];
-                refreshGrid();
-                $("#main-container").attr("hidden",false);
+          checkUserAccess();
+        },
+          function(err){
+            if(err.status == 404){
+              allProducts = [];
+              refreshGrid();
+              $("#main-container").attr("hidden",false);
 
-                VSS.notifyLoadSucceeded();
+              VSS.notifyLoadSucceeded();
 
-                checkUserAccess();
-              }else{
-                console.log("Error loading all docs " + JSON.stringify(err));
-              }
+              checkUserAccess();
+            }else{
+              console.log("Error loading all docs " + JSON.stringify(err));
             }
-          );
+          }
+        );
       }
 
       $('#info-date').datepicker({
@@ -462,7 +547,6 @@
             return true;
           }
         }
-
         return false;
       }
 
@@ -474,6 +558,7 @@
           if(productKeyExists(products.key)){
             alert("Product already exists.");
           }else{
+            setAllActive(products);
             allProducts.push(products);
             refreshGrid();
           }
@@ -488,6 +573,7 @@
           if(productKeyExists(products.key)){
             alert("Product already exists.");
           }else{
+            setAllActive(products);
             allProducts.push(products);
             refreshGrid();
           }
@@ -604,9 +690,10 @@
         $("#toAddPMDMHardwareid").val("");
       }
 
-      function newProduct(){
+      function newProductCompletion(){
         flagDirty();
         var product = $("#newManualProductName").val();
+        console.log("Adding: "+product);
         if (product != null && product != "") {
           key = sanitizeKey("custom" + product);
           if(productKeyExists(key)){
@@ -616,10 +703,12 @@
               name: sanitizeProductName(product),
               children: [],
               imported: false,
-              source: 'manual',
-              key: key
+              source: 'AzDO',
+              key: key,
+              active: true
             });
             refreshGrid();
+            console.log("Added");
           }
         }
         $("#newManualProductName").val("");
@@ -645,8 +734,7 @@
         $('#newVersionProduct').val(getRootNode(grid.getRowData(selected[0]).gridKey).gridKey);
       }
 
-      function newVersionCompletion()
-      {
+      function newVersionCompletion(){
         flagDirty();
         var productNode = getRootNode($('#newVersionProduct').val());
 
@@ -655,49 +743,44 @@
           name: $('#newVersionName').val(),
           children: [],
           key: sanitizeKey($('#newVersionName').val()),
-          firstAvailable: $('#new-version-date').datepicker('getFormattedDate')
+          firstAvailable: $('#new-version-date').datepicker('getFormattedDate'),
+          active: true
         });
 
         productNode.children.sort(sortProductsChildren);
         refreshGrid();
       }
 
-      function sanitizeProductName(name)
-      {
+      function sanitizeProductName(name){
         return name.replace(/;/g,"");
       }
 
-      function sanitizeKey(key)
-      {
+      function sanitizeKey(key){
         return key.toLowerCase().replace(/,/g,"").replace(/;/g,"").replace(/ /g,"").replace(/&/g,"");
       }
 
       function setDoc(file, contents, force){
         force = force || false;
+        console.log("Trying to save"+file);
         var myDoc = {
-            id: file,
-            data: contents,
-            __etag: -1 //TODO Not this
-          };
+          id: file,
+          data: contents,
+          __etag: -1 //TODO Not this
+        };
 
         VSS.getService(VSS.ServiceIds.ExtensionData).then(function(dataService) {
+          console.log("Got the service");
           dataService.setDocument(VSS.getWebContext().project.id, myDoc).then(function(doc) {
-
+            console.log("Saved "+file);
           }, function (err){
+            console.log("Error setting document"+file+"on remote serner.");
             alert("Error setting document"+file+"on remote serner.");
           });
-        });
-      }
-
-      function saveProducts()
-      {
-        setDoc("products", allProducts);
-      }
-
-      function saveData()
-      {
-        saveProducts();
-        clearDirty();
+        }, function (err){
+            console.log("Error getting service.");
+            alert("Error getting service.");
+          }
+        );
       }
 
       function updateFromPMDM(){
@@ -739,20 +822,25 @@
       
       $('#pmdmModal').on('shown.bs.modal', function () {
           $('#tags').trigger('focus');
-        })
+      });
 
       $('#pmdmHardwareModal').on('shown.bs.modal', function () {
         $('#hardwareTags').trigger('focus');
-      })
+      });
 
       $('#manualModal').on('shown.bs.modal', function () {
         $('#newManualProductName').focus();
-        })
+      });
 
-      function saveAllInOne()
+      function save()
       {
+        // Save the main config used by the hub
+        setDoc("products", allProducts);
+
+        // Generate the condensed objects for the search indexer and selector form 
+
         // n = name, k = key, c = children
-        var fullTreeCollapsed = [];
+        var fullTreeCollapsed = []; // Removes Extraneous fields
         for (var i in allProducts) {
           var toAdd = { n: allProducts[i].name, k: allProducts[i].key, c: [] };
           for(var x in allProducts[i].children) {
@@ -761,26 +849,34 @@
           fullTreeCollapsed.push(toAdd);
         }
 
-        var start = (new Date()).getTime();
-
-        var products = [];
-        for(var i in fullTreeCollapsed){
-          products.push({n: fullTreeCollapsed[i].n})
+        var flatProducts = [];
+        for(var i in fullTreeCollapsed){ // Collapses the tree into a flat list for the index
+          flatProducts.push({n: fullTreeCollapsed[i].n})
           for(var x in fullTreeCollapsed[i].c){
-              products.push({n: fullTreeCollapsed[i].n + ": " + fullTreeCollapsed[i].c[x].n})
+            flatProducts.push({n: fullTreeCollapsed[i].n + ": " + fullTreeCollapsed[i].c[x].n})
           }
         }
 
-        var idx = lunr(function() {
-            this.ref('i');
-            this.field('n');
-            for (i in products) {
-                products[i].i=i;
-                this.add(products[i]);
-            }
+        // Remove the stop word filter from the indexing process.
+        // Otherwise you can't search for 'CAN' devices.
+        // Looking at the lunr code and filtered words it doesn't seem to be necessary for our dataset of product names
+        lunr.stopWordFilter =  lunr.generateStopWordFilter([]);
+        lunr.Pipeline.registerFunction(lunr.stopWordFilter, 'stopWordFilter')
+
+        var idx = lunr(function(builder) {
+
+          this.ref('i');
+          this.field('n');
+          for (var i in flatProducts) {
+            flatProducts[i].i=i;
+            this.add(flatProducts[i]);
+          }
         });
 
         setDoc("allproducts",{idx: JSON.stringify(idx), products: fullTreeCollapsed});
+
+        clearDirty();
+        console.log("Done saving!");
       }
 
       VSS.require(["VSS/Controls", "VSS/Controls/Menus"], function(Controls, Menus) {
@@ -795,10 +891,12 @@
           { separator: true},
           { id: "import-pmdm-hardware", text: "Import Hardware - PMDM", noIcon: true },
           { separator: true},
+/*
           { id: "import-1000-software", text: "All Software ", noIcon: true },
           { separator: true },
           { id: "import-1000-hardware", text: "All Hardware", noIcon: true },
           { separator: true },
+*/
           { id: "delete-items", text: "Delete Selected", noIcon: true },
           { separator: true },
           { id: "save", text: "Save", noIcon: true },
@@ -845,8 +943,7 @@
                 deleteItems(gridKeysToDelete);
                 break;
               case "save":
-                saveData();
-                saveAllInOne();
+                save();
                 break;
               default:
                 alert("Unhandled action: " + command);
@@ -855,12 +952,12 @@
           }
         };
         var menubar = Controls.create(Menus.MenuBar, container, menubarOptions);
-    });
+      });
 
     $('#newManualProductName').keypress(function(event) {
       if (event.keyCode == 13 || event.which == 13) {
         $("#manualModal").modal('hide');
-        newProduct();
+        newProductCompletion();
       }
     });
 
@@ -877,7 +974,7 @@
             //console.log(request.getResponseHeader('X-MS-ContinuationToken'));
           }
       });
-        return ret;
+      return ret;
     }
 
     function checkUserAccess()
@@ -920,7 +1017,6 @@
         }
       });
     }
-
   </script>
 </body>
 </html>

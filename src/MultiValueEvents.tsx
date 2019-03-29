@@ -79,6 +79,7 @@ export class MultiValueEvents {
                     }
                 }
 
+                // TODO, move this to productservice.ts, maybe called from formselectordialog.html
                 var extensionCtx = VSS.getExtensionContext();
                 var contributionId = extensionCtx.publisherId + "." + extensionCtx.extensionId + ".form-products-service";
                 VSS.getServiceContribution(contributionId).then( function (contributionObj){

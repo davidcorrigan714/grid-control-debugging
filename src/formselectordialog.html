@@ -10,11 +10,11 @@
     VSS.init({applyTheme: true, explicitNotifyLoaded: true, usePlatformScripts: true});
 
     var selectorDialog = (function(id) {
-        return {
-            getFormData: function() {
-              return $("#selected-products").html();
-            }
-        };
+      return {
+        getFormData: function() {
+          return $("#selected-products").html();
+        }
+      };
     })();
 
     // Register form object to be used across this extension
@@ -23,12 +23,19 @@
 </head>
 <body>
   <div id=menubar></div><br/>
-  <div id="recent-page" >
+  <div id="recent-page">
     <select id="recent-products" size="10" style="width: 400px" multiple></select>
   </div>
   <div id="search-page" hidden>
-    Search:  <input id="searchQuery" type="text" style="width: 250px"><br/><br/>
-    <select id="products" size="10" style="width: 400px" multiple></select>
+    Search:  <input id="searchQuery" type="text" style="width: 180px;color: var(--palette-neutral-100)"><br/><br/>
+    <div style="display: flex">
+      <div style="width: 250px">
+        <select id="products" size="10" style="width: 250px" multiple></select>
+      </div>
+      <div style="width: 250px;padding-left: 15px">
+          <select id="products2" style="width: 250px;color: var(--palette-neutral-100)" size="10" multiple><option>;lasfdjaosdmpaosmdv</option></select>
+      </div>
+    </div>
   </div>
   <div id="list-page" hidden>
     Product:</br>
@@ -39,34 +46,11 @@
   <div id="selected-products" hidden="true">[]</div>
 
   <script>
-      var runLocal = false;
-      var localURL = 'https://azdo-dev.natinst.com:8443';
       var products = [];
       var flatProducts = [];
       var recentProducts = [];
       var loadedProducts = false;
       var idx = {};
-
-      function getDoc(file, cb)
-      {
-        if(runLocal){
-          //Run Locally
-          $.ajax({url: localURL+"/devGetDoc?doc="+file, success: function(result){
-            cb(result);
-          }});
-        }else{
-          // Run on VSS          
-          // Get data service
-          VSS.getService(VSS.ServiceIds.ExtensionData).then(function(dataService) {
-              // Get document by id
-              dataService.getDocument("ProductCollection", file).then(function(file) {
-                cb(file.data);
-              }, function (err){
-                console.log(err);
-              });
-          });
-        }
-      }
 
       function updateProductDropdowns(){
         if(typeof(products) == "undefined" || products.length == 0){
@@ -115,10 +99,6 @@
         $('#selected-products').html( JSON.stringify([{name:fullName,key:fullKey}]));
       }
 
-      function deltaTime(time){
-        return (new Date()).getTime() - time;
-      }
-
       function resultsSort(a, b)
       {
         if (a.score == b.score){
@@ -128,8 +108,7 @@
           }else{
             return -1
           }
-        }
-        else if(a.score > b.score){
+        }else if(a.score > b.score){
           return -1;
         }else{
           return 1;
@@ -209,24 +188,8 @@
         };
         var menubar = Controls.create(Menus.MenuBar, container, menubarOptions);
     });
-
-    function LoadRecents(){
-      VSS.getService(VSS.ServiceIds.ExtensionData).then(function(dataService) {
-        recentProducts = [];
-        // Get document by id
-        dataService.getDocument("ProductCollection", "recent", {scopeType: "User"}).then(function(file) {
-          $("#recent-products").empty();
-          for(var i in file.data){
-            $('#recent-products').append("<option value=\"" + file.data[i].key + "\">" + file.data[i].name + "</option>");
-          }
-        }, function (err){
-          console.log(err);
-        });
-      });
-    }
    
     function loadData(){
-      var start2 = (new Date()).getTime();
       var extensionCtx = VSS.getExtensionContext();
       var contributionId = extensionCtx.publisherId + "." + extensionCtx.extensionId + ".form-products-service";
       VSS.getServiceContribution(contributionId).then( function (contributionObj){
