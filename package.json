@@ -43,6 +43,7 @@
     "webpack-dev-server": "^2.4.2"
   },
   "dependencies": {
+    "@types/lunr": "^2.3.2",
     "bootstrap": "^4.3.1",
     "bootstrap-datepicker": "^1.8.0",
     "jquery": "^3.3.1",

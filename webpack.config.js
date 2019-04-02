@@ -7,7 +7,8 @@ module.exports = {
     target: "web",
     entry: {
         multivalue: "./src/multivalue.ts",
-        productsservice: "./src/productsservice.ts"
+        productsservice: "./src/productsservice.ts",
+        formselectordialog: "./src/formselectordialog.ts"
     },
     output: {
         filename: "src/[name].js",
@@ -56,7 +57,8 @@ module.exports = {
             { from: "./src/productselector.html", to: "./" },
             { from: "./src/formselectordialog.html", to: "./" },
             { from: "./src/productshub.html", to: "./" },
-            { from: "./src/productsservice.html", to: "./"}
+            { from: "./src/productsservice.html", to: "./"},
+            { from: "./src/products.css", to: "./css"}
         ])
     ]
 }

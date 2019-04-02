@@ -1,32 +1,11 @@
 /// <reference types="vss-web-extension-sdk" />
 
 import * as WitExtensionContracts from "TFS/WorkItemTracking/ExtensionContracts";
+import * as PS from "ProductSelector"
 
-interface flatProductTreeI {
-    name: string;
-    key: string;
-    children: Array<flatProductTreeI>;
-}
-
-interface productTreeI {
-    n: string; // name
-    k: string; // key
-    c: Array<productTreeI>; //children
-}
-
-interface productEntryI {
-    name: string;
-    key: string;
-}
-
-interface allProductsDocI {
-    idx: string;
-    products: [productTreeI];
-}
-
-let ProductTree: Array<productTreeI> = [];
-let FlatProducts: Array<flatProductTreeI> = [];
-let RecentProducts: Array<productEntryI> = [];
+let ProductTree: Array<PS.productTreeI> = [];
+let FlatProducts: Array<PS.productTreeI> = [];
+let RecentProducts: Array<PS.productEntryI> = [];
 let ProductIdx: string = ''; // Search index for lunr
 let Loaded: boolean = false;
 
@@ -44,26 +23,26 @@ function getDoc(file: string) : Promise<any>
     });
 }
 
-function load() : Promise<{recentProducts: Array<productEntryI>, productTree: Array<productTreeI>, flatProducts: Array<flatProductTreeI>, productIdx: string}>
+function load() : Promise<{recentProducts: Array<PS.productEntryI>, productTree: Array<PS.productTreeI>, flatProducts: Array<PS.productTreeI>, productIdx: string}>
 {
     return new Promise<any>((resolve , reject) => {
-        Promise.all([getDoc('allproducts'),VSS.getService(VSS.ServiceIds.ExtensionData) ]).then((results:[allProductsDocI,IExtensionDataService]) => {
+        Promise.all([getDoc('allproducts'),VSS.getService(VSS.ServiceIds.ExtensionData) ]).then((results:[PS.allProductsDocI,IExtensionDataService]) => {
             var data = results[0];
-            let productTree: Array<productTreeI> = data.products;
-            let flatProducts: Array<flatProductTreeI> = [];
+            let productTree: Array<PS.productTreeI> = data.products;
+            let flatProducts: Array<PS.productTreeI> = [];
             let productIdx: string  = data.idx;
 
             for(var i in productTree){
                 if(productTree[i]){
-                    flatProducts.push({name: productTree[i].n, key:productTree[i].k + ";", children: []})
-                    for(var x in productTree[i].c){
-                        flatProducts.push({name: productTree[i].n + ": " + productTree[i].c[x].n, key:productTree[i].k + "," + productTree[i].c[x].k, children: []})
+                    flatProducts.push({name: productTree[i].name, key:productTree[i].key, children: []})
+                    for(var x in productTree[i].children){
+                        flatProducts.push({name: productTree[i].name + ": " + productTree[i].children[x].name, key:productTree[i].key + "," + productTree[i].children[x].key, children: []})
                     }
                 }
             }
 
             results[1].getDocument(VSS.getWebContext().project.id, "recent", {scopeType: "User"}).then ((recents) =>{
-                let recentProducts: Array<productEntryI> = recents.data;
+                let recentProducts: Array<PS.productEntryI> = recents.data;
                 resolve({recentProducts: recentProducts, productTree: productTree, flatProducts: flatProducts, productIdx: productIdx});
             }, () => {
                 // Getting recent failed, which is fine
@@ -75,7 +54,7 @@ function load() : Promise<{recentProducts: Array<productEntryI>, productTree: Ar
     });
 }
 
-load().then(function (results: {recentProducts: Array<productEntryI>, productTree: Array<productTreeI>, flatProducts: Array<flatProductTreeI>, productIdx: string}) {
+load().then(function (results: {recentProducts: Array<PS.productEntryI>, productTree: Array<PS.productTreeI>, flatProducts: Array<PS.productTreeI>, productIdx: string}) {
     RecentProducts = results.recentProducts;
     ProductTree = results.productTree;
     FlatProducts = results.flatProducts;
@@ -100,10 +79,10 @@ function saveRecentProducts()
 
 const provider = () => {
     return {
-        updateRecentProducts: (products : Array<productEntryI>) =>
+        updateRecentProducts: (products : Array<PS.productEntryI>) =>
         {
             var found:boolean;
-            for( var i = products.length - 1; i > 0; i--){
+            for( var i = products.length - 1; i >= 0; i--){
                 found = false;
                 for(var x in RecentProducts)
                 {
@@ -119,7 +98,7 @@ const provider = () => {
                     RecentProducts.unshift(products[i]);
                 }
             }
-            RecentProducts.splice(50);
+            RecentProducts.splice(17);
             saveRecentProducts();
         },
         getProductDB: () => {

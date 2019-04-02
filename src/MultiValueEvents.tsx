@@ -56,8 +56,8 @@ export class MultiValueEvents {
 
         var dialogOptions : IHostDialogOptions = {
             title: "Product Selection",
-            width: 600,
-            height: 375,
+            width: 700,
+            height: 480,
             //urlReplacementObject: {key: '1234'},
             getDialogResult: function() {
                 // Get the result from selectorForm object

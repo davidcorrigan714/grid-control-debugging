@@ -10,6 +10,8 @@
 <link href="css/bootstrap.min.css" rel="stylesheet">
 <link href="css/jquery-ui.min.css"  rel="stylesheet">
 
+<link href="css/products.css" rel="stylesheet">
+
 <script src="js/lunr.min.js"></script>
 
 <!-- for ie -->
@@ -839,21 +841,20 @@
 
         // Generate the condensed objects for the search indexer and selector form 
 
-        // n = name, k = key, c = children
         var fullTreeCollapsed = []; // Removes Extraneous fields
         for (var i in allProducts) {
-          var toAdd = { n: allProducts[i].name, k: allProducts[i].key, c: [] };
+          var toAdd = { name: allProducts[i].name, key: allProducts[i].key, children: [] };
           for(var x in allProducts[i].children) {
-            toAdd.c.push({ n: allProducts[i].children[x].name, k: allProducts[i].children[x].key });  
+            toAdd.children.push({ name: allProducts[i].children[x].name, key: allProducts[i].children[x].key });  
           }
           fullTreeCollapsed.push(toAdd);
         }
 
         var flatProducts = [];
         for(var i in fullTreeCollapsed){ // Collapses the tree into a flat list for the index
-          flatProducts.push({n: fullTreeCollapsed[i].n})
-          for(var x in fullTreeCollapsed[i].c){
-            flatProducts.push({n: fullTreeCollapsed[i].n + ": " + fullTreeCollapsed[i].c[x].n})
+          flatProducts.push({name: fullTreeCollapsed[i].name})
+          for(var x in fullTreeCollapsed[i].children){
+            flatProducts.push({name: fullTreeCollapsed[i].name + ": " + fullTreeCollapsed[i].children[x].name})
           }
         }
 
@@ -866,7 +867,7 @@
         var idx = lunr(function(builder) {
 
           this.ref('i');
-          this.field('n');
+          this.field('name');
           for (var i in flatProducts) {
             flatProducts[i].i=i;
             this.add(flatProducts[i]);
