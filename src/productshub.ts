@@ -240,9 +240,9 @@ var gridOptions : Grids.IGridOptions = {
         var node : productInfoI = grid.getRowData(rowInfo.dataIndex);
         var divStuff : string = "role='row' style='width:"+column.width+"px' class='grid-cell'";
         if('active' in node && node.active){
-          return $("<div "+divStuff+"><a href='#' onClick='toggleActive("+node.gridKey+")'>Y</a></div>");
+          return $("<div "+divStuff+" class='toggle-active' gridKey='"+node.gridKey+"'>Y</div>");
         }else{
-          return $("<div "+divStuff+"><a href='#' onClick='toggleActive("+node.gridKey+")'>N</a></div>");
+          return $("<div "+divStuff+" class='toggle-active' gridKey='"+node.gridKey+"'>N</div>");
         }
       }
     },
@@ -278,9 +278,13 @@ var gridOptions : Grids.IGridOptions = {
 
 // This is used for the onClick of the active field on the grid
 // Might have a better way to do this that makes TS happy but I'm not figuring it out atm
-// @ts-ignore
-function toggleActive(dataIndex : number) : void
-{
+// function toggleActive(dataIndex : number) : void
+
+$("#productTree").on('click', () => {
+  console.log($(this));
+  console.log($(this).attr('gridKey'));
+
+  var dataIndex = parseInt($(this).attr('gridKey'));
   var ret : any = getNode(dataIndex, allProducts);
   if(ret == null) {
     return;
@@ -290,7 +294,7 @@ function toggleActive(dataIndex : number) : void
   node.active = !node.active;
 
   grid.redraw();
-}
+});
 
 /*
 function setDate(dataIndex)

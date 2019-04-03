@@ -14,6 +14,9 @@ import re
 app = Flask(__name__)
 CORS(app)
 
+# This file will live on an apache server somewhere, needs some cleanup and the API file should be in a config.
+# Also should get it containerized for deployment
+
 apiKey = "3e1950b0-1e9b-48e9-a145-92bbab30f6b2"
 
 pmdmURL = "http://immix-dev.natinst.com/pmdm/odata/2/" # Dev
