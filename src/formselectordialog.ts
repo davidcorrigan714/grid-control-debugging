@@ -1,10 +1,9 @@
 /// <reference types="vss-web-extension-sdk" />
-import * as PS from "ProductSelector"
-import * as lunr from "lunr"
-import { MenuBarOptions, IMenuItemSpec} from "VSS/Controls/Menus";
+import * as PS from "ProductSelector";
+import * as lunr from "lunr";
+import * as Menus from "VSS/Controls/Menus";
 import { CommandEventArgs } from "VSS/Events/Handlers";
-// import { VssService } from "VSS/Service";
-// import { MenuBar } from "VSS/Controls/Menus";
+import * as Controls from "VSS/Controls";
 
 var products : Array<PS.productTreeI> = [];
 var flatProducts : Array<PS.productTreeI> = [];
@@ -101,57 +100,20 @@ $("#recent-products").on('change', function(){
     $("#selected-products").html(JSON.stringify(selectedProducts));
 });
 
-VSS.require(["VSS/Controls", "VSS/Controls/Menus"], function(Controls , Menus ) {
-    var container = $("#menubar");
-
-    var menuItems : Array<IMenuItemSpec> = [
-        { id: "recent", text: "Recent",  noIcon: true  },
-        { separator: true },
-        { id: "search", text: "Search", noIcon: true }
-    ];
-
-    var menubarOptions : MenuBarOptions = {
-        items: menuItems,
-        executeAction: function (args : CommandEventArgs) {
-            console.log(args);
-            var command = args.get_commandName();
-            switch (command) {
-                case "recent":
-                    $("#recent-page").removeAttr("hidden");
-                    $("#search-page").attr("hidden");
-                    $("select option:selected").prop("selected", 0);
-                    $('#selected-products').html("");
-                    break;
-                case "search":
-                    $("#recent-page").attr("hidden");
-                    $("#search-page").removeAttr("hidden");
-                    $("select option:selected").prop("selected", 0);
-                    $('#selected-products').html("");
-                    break;
-                default:
-                    alert("Unhandled action: " + command);
-                    break;
-            }
-        }
-    };
-    Controls.create(Menus.MenuBar, container, menubarOptions);
-});
-
+// Called once the VSS extension API is ready
 function loadData(){
     var extensionCtx = VSS.getExtensionContext();
     var contributionId = extensionCtx.publisherId + "." + extensionCtx.extensionId + ".form-products-service";
-    VSS.getServiceContribution(contributionId).then( function (contributionObj){
+    VSS.getServiceContribution(contributionId).then( function (contributionObj : IServiceContribution ){
         contributionObj.getInstance().then(function (instanceObj : PS.productSelectorService){
-            instanceObj.getProductDB().then(function (productDB){
+            instanceObj.getProductDB().then(function (productDB : PS.productDBI){
             products = productDB.productTree;
             flatProducts = productDB.flatProducts;
             recentProducts = productDB.recentProducts;
 
-            var recentDropdown = "";
             for(var i in recentProducts){
-                recentDropdown += "<option value=\"" + i + "\">" + recentProducts[i].name + "</option>";
+                $('#recent-products').append("<option value=\"" + i + "\">" + recentProducts[i].name + "</option>");
             }
-            $('#recent-products').append(recentDropdown);
 
             addAllProductsToSearchPage();
 
@@ -164,6 +126,35 @@ function loadData(){
 }
 
 VSS.ready(loadData);
+
+var menubarOptions : Menus.MenuBarOptions = {
+    items: [
+        { id: "recent", text: "Recent",  noIcon: true  },
+        { separator: true },
+        { id: "search", text: "Search", noIcon: true }
+        ],
+    executeAction: function (args : CommandEventArgs) {
+        var command = args.get_commandName();
+        switch (command) {
+            case "recent":
+                $("#recent-page").removeAttr("hidden");
+                $("#search-page").attr("hidden","");
+                $("select option:selected").prop("selected", 0);
+                $('#selected-products').html("");
+                break;
+            case "search":
+                $("#recent-page").attr("hidden","");
+                $("#search-page").removeAttr("hidden");
+                $("select option:selected").prop("selected", 0);
+                $('#selected-products').html("");
+                break;
+            default:
+                alert("Unhandled action: " + command);
+                break;
+        }
+    }
+};
+Controls.create(Menus.MenuBar, $("#menubar"), menubarOptions);
 
 var selectorDialog = (function(id) {
     return {

@@ -14,7 +14,8 @@
             "react",
             "react-dom",
             "vss-web-extension-sdk",
-            "lunr"
+            "lunr",
+            "bootstrap"
         ],
         "lib": [
             "es2015.promise",

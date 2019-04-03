@@ -8,7 +8,8 @@ module.exports = {
     entry: {
         multivalue: "./src/multivalue.ts",
         productsservice: "./src/productsservice.ts",
-        formselectordialog: "./src/formselectordialog.ts"
+        formselectordialog: "./src/formselectordialog.ts",
+        productshub: "./src/productshub.ts"
     },
     output: {
         filename: "src/[name].js",
@@ -35,7 +36,7 @@ module.exports = {
             }
         ]
     },
-    mode: "development",
+    mode: "production",
     plugins: [
         new BundleAnalyzerPlugin({
           openAnalyzer: false,

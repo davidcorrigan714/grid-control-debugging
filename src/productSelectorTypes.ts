@@ -1,13 +1,13 @@
 declare module "ProductSelector" {
     interface productTreeI {
-        name: string; // name
-        key: string; // key
-        children: Array<productTreeI>; //children
+        name: string;
+        key: string;
+        children: Array<productTreeI>;
     }
 
     interface productEntryI {
-        name: string; // name
-        key: string; // key
+        name: string;
+        key: string;
     }
     
     interface allProductsDocI {
