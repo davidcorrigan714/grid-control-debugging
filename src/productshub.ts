@@ -146,6 +146,18 @@ function deleteItems(gridKeysToDelete : Array<number>) : void{
   refreshGrid();
 }
 
+function deleteProductByKey(productKey : string) : void{
+  var searchLen = allProducts.length;
+  for(var i = 0;i<searchLen;i++){
+    if(allProducts[i].key === productKey)
+    {
+      allProducts.splice(i,1);
+      refreshGrid();
+      return;
+    }
+  }
+}
+
 function refreshGrid() : void
 {
   allProducts.sort(sortProducts);
@@ -300,35 +312,60 @@ function productKeyExists(key : string) : boolean
   return false;
 }
 
-function SoftwareProductFromPMDM(productId : string) : void{
-  // TODO Sanitize product names from pmdm
-  flagDirty();
-  $.ajax({url: localURL+"/pmdmsoftwareproduct?productId="+productId, success: function(result){
-    var products : productInfoI = JSON.parse(result);
-    console.log(products);
-    if(productKeyExists(products.key)){
-      alert("Product already exists.");
-    }else{
-      setAllActive([products]);
-      allProducts.push(products);
-      refreshGrid();
-    }
-  }});
+function getPMDMSoftwareProduct(productId : string) {
+  return new Promise((resolve, reject) => { $.ajax({url: localURL+"/pmdmsoftwareproduct?productId="+productId})
+      .then( function (result: string){
+        var products : productInfoI = JSON.parse(result);
+        resolve(products);
+      })
+      .fail( function () {
+          reject(undefined);
+      });
+  });
 }
 
-function HardwareProductFromPMDM(productId : string) : void{
+function getPMDMHardwareProduct(productId : string) {
+  return new Promise((resolve, reject) => { $.ajax({url: localURL+"/pmdmhardwareproduct?productId="+productId})
+      .then( function (result: string){
+        var products : productInfoI = JSON.parse(result);
+        resolve(products);
+      })
+      .fail( function () {
+          reject(undefined);
+      });
+  });
+}
+
+function SoftwareProductFromPMDM(productId : string) : void {
   // TODO Sanitize product names from pmdm
-  flagDirty();
-  $.ajax({url: localURL+"/pmdmhardwareproduct?productId="+productId, success: function(result){
-    var products : productInfoI = JSON.parse(result);
-    if(productKeyExists(products.key)){
+  getPMDMSoftwareProduct(productId).then( function (product : productInfoI) {
+    if(productKeyExists(product.key)){
       alert("Product already exists.");
     }else{
-      setAllActive([products]);
-      allProducts.push(products);
+      flagDirty();
+      setAllActive([product]);
+      allProducts.push(product);
       refreshGrid();
     }
-  }});
+  }).catch( function (errString : string){
+    alert("Failed to get product: " + errString);
+  });
+}
+
+function HardwareProductFromPMDM(productId : string) : void {
+  // TODO Sanitize product names from pmdm
+  getPMDMHardwareProduct(productId).then( function (product : productInfoI) {
+    if(productKeyExists(product.key)){
+      alert("Product already exists.");
+    }else{
+      flagDirty();
+      setAllActive([product]);
+      allProducts.push(product);
+      refreshGrid();
+    }
+  }).catch( function (errString : string){
+    alert("Failed to get product: " + errString);
+  });
 }
 
 // Autocomplete for the pmdm dialog
@@ -436,9 +473,9 @@ $("#pmdm-software-dialog-ok").on('click', () => {
   $("#toAddPMDMid").val("");
 });
 
-function findHardwareProduct(name: string) : pmdmProductI | null {
+function findHardwareProduct(id: string) : pmdmProductI | null {
   for(var i in pmdmHardwareProducts){
-    if(pmdmHardwareProducts[i].name == name){
+    if(pmdmHardwareProducts[i].productId == id){
       return pmdmHardwareProducts[i];
     }
   }
@@ -546,67 +583,94 @@ function sanitizeKey(key : string) : string{
   return key.toLowerCase().replace(/,/g,"").replace(/;/g,"").replace(/ /g,"").replace(/&/g,"");
 }
 
-function setDoc(file : string, contents : any, force? : boolean){
-  force = force || false;
-  console.log("Trying to save"+file);
-  var myDoc = {
-    id: file,
-    data: contents,
-    __etag: -1 //TODO Not this
-  };
+async function setDoc(file : string, contents : any, force? : boolean) : Promise<{}> { 
+  return new Promise((resolve, reject) => {
+    force = force || false;
+    console.log("Trying to save"+file);
+    var myDoc = {
+      id: file,
+      data: contents,
+      __etag: -1 //TODO Not this
+    };
 
-  VSS.getService(VSS.ServiceIds.ExtensionData).then(function(dataService : IExtensionDataService) {
-    console.log("Got the service");
-    dataService.setDocument(VSS.getWebContext().project.id, myDoc).then(function(doc) {
-      console.log("Saved "+file);
+    VSS.getService(VSS.ServiceIds.ExtensionData).then(function(dataService : IExtensionDataService) {
+      console.log("Got the service");
+      dataService.setDocument(VSS.getWebContext().project.id, myDoc).then(function(doc) {
+        console.log("Saved "+file);
+        resolve();
+      }, function (err){
+        console.log("Error setting document"+file+"on remote serner.");
+        alert("Error setting document"+file+"on remote serner.");
+        reject();
+      });
     }, function (err){
-      console.log("Error setting document"+file+"on remote serner.");
-      alert("Error setting document"+file+"on remote serner.");
-    });
-  }, function (err){
-      console.log("Error getting service.");
-      alert("Error getting service.");
-    }
-  );
+        console.log("Error getting service.");
+        alert("Error getting service.");
+        reject();
+      }
+    );
+  });
 }
 
-// TODO fix up this function and add it ot the gui
-// @ts-ignore
-function updateFromPMDM() : void{
+$("#pmdmUpdateModal").on("shown.bs.modal",
+async function () {
   flagDirty();
-  var selected = grid.getSelectedDataIndices();
-  if(selected.length != 1){
-    alert("Invalid Selection\n");
+
+  var productsToUpdate : Array<string> = [];
+  var indices = grid.getSelectedDataIndices();
+
+  if(indices.length == 0){
+    $("#pmdmUpdateModal").modal('hide');
+    alert("No items selected.");
     return;
   }
 
-  var rootNode : productInfoI | null = getRootNode(grid.getRowData(selected[0]).gridKey);
-
-  if(rootNode == null){
-    alert("ERROR updateFromPMDM couldn't get rootNode");
-    return;
+  for(var i in indices){
+    var rowData : productInfoI = grid.getRowData(indices[i]);
+    var rootNode : productInfoI | null = getRootNode(rowData.gridKey);
+    if(rootNode !== null){
+      if(!rootNode.imported || rootNode.source != "pmdm"){
+        alert("Product " + rootNode.name + " not from pmdm");
+        continue;
+      }else{
+        productsToUpdate.push(rootNode.key);
+      }
+    }
   }
 
-  if(!rootNode.imported || rootNode.source != "pmdm"){
-    alert("Product not from pmdm");
-    return;
-  }
+  for (var i in productsToUpdate){
+    var pmdmType = productsToUpdate[i].substring(0,5);
+    var pmdmProductId = productsToUpdate[i].substring(5);
 
-  var pmdmType = rootNode.key.substring(0,5);
-  var pmdmProductId = rootNode.key.substring(5);
+    $("#pmdmUpdateStatus").html("Updating " + i + " of " + productsToUpdate.length + ".");
 
-  if(pmdmType == "pmdms"){
-    deleteItems([rootNode.gridKey]);
-    SoftwareProductFromPMDM(pmdmProductId);
-    alert("Product updated\n");
-  }else if(pmdmType == "pmdmh"){
-    deleteItems([rootNode.gridKey]);
-    HardwareProductFromPMDM(pmdmProductId);
-    alert("Product updated\n");
-  }else{
-    alert("Invalid pmdm key.");
+    if(pmdmType == "pmdms"){
+      await getPMDMSoftwareProduct(pmdmProductId).then(function (product : productInfoI) {
+        // TODO Merge active property with existing product in grid
+        deleteProductByKey(product.key);
+
+        setAllActive([product]);
+        allProducts.push(product);
+      }).catch( function (error: string) {
+        console.log("Error getting PMDM Software Product "+pmdmProductId+": " + error);
+      });
+    }else if(pmdmType == "pmdmh"){
+      await getPMDMHardwareProduct(pmdmProductId).then(function (product : productInfoI) {
+        // TODO Merge active property with existing product in grid
+        deleteProductByKey(product.key);
+
+        setAllActive([product]);
+        allProducts.push(product);
+      }).catch( function (error: string) {
+        console.log("Error getting PMDM Software Product "+pmdmProductId+": " + error);
+      });
+    }else{
+      alert("Invalid pmdm key.");
+    }
   }
-}
+  refreshGrid();
+  $("#pmdmUpdateModal").modal('hide');
+});
 
 $('#new-version-date').datepicker({
   // @ts-ignore It's getting the types from the wrong datepicker type
@@ -642,10 +706,10 @@ function hasActiveChild(node: productInfoI) : boolean {
   return false;
 }
 
-function save()
+$("#savingModal").on("shown.bs.modal", async function ()
 {
   // Save the main config used by the hub
-  setDoc("products", allProducts);
+  await setDoc("products", allProducts);
 
   // Generate the condensed objects for the search indexer and selector form 
 
@@ -696,11 +760,12 @@ function save()
     }
   });
 
-  setDoc("allproducts",{idx: JSON.stringify(idx), products: fullTreeCollapsed});
+  await setDoc("allproducts",{idx: JSON.stringify(idx), products: fullTreeCollapsed});
 
   clearDirty();
   console.log("Done saving!");
-}
+  $("#savingModal").modal('hide');
+});
 
 var menuItems : Array<Menus.IMenuItemSpec> = [
   { id: "new-product", text: "New Product",  noIcon: true  },
@@ -710,6 +775,8 @@ var menuItems : Array<Menus.IMenuItemSpec> = [
   { id: "import-pmdm-software", text: "Import Software - PMDM", disabled: true, noIcon: true },
   { separator: true},
   { id: "import-pmdm-hardware", text: "Import Hardware - PMDM", disabled: true, noIcon: true },
+  { separator: true},
+  { id: "update-from-pmdm", text: "Update PMDM Product", noIcon: true},
   { separator: true},
 /*
   { id: "import-1000-software", text: "All Software ", noIcon: true },
@@ -765,8 +832,11 @@ var menubarOptions : Menus.MenuBarOptions = {
         deleteItems(gridKeysToDelete);
         break;
       case "save":
-        save();
-        // TODO Modal, or confirmation of some kind
+        $("#savingModal").modal();
+        break;
+      case "update-from-pmdm":
+        $("#pmdmUpdateStatus").html('');
+        $("#pmdmUpdateModal").modal();
         break;
       default:
         alert("Unhandled action: " + command);
