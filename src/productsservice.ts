@@ -32,14 +32,14 @@ function load() : Promise<{recentProducts: Array<PS.productEntryI>, productTree:
             let flatProducts: Array<PS.productTreeI> = [];
             let productIdx: string  = data.idx;
 
-            for(var i in productTree){
-                if(productTree[i]){
-                    flatProducts.push({name: productTree[i].name, key:productTree[i].key, children: []})
-                    for(var x in productTree[i].children){
-                        flatProducts.push({name: productTree[i].name + ": " + productTree[i].children[x].name, key:productTree[i].key + "," + productTree[i].children[x].key, children: []})
-                    }
+            productTree.forEach(function (product : PS.productTreeI){
+                flatProducts.push({name: product.name, key:product.key, children: []})
+                if(product.children){
+                    product.children.forEach(function (child : PS.productTreeI) {
+                        flatProducts.push({name: product.name + ": " + child.name, key:product.key + "," + child.key, children: []})
+                    });
                 }
-            }
+            });
 
             results[1].getDocument(VSS.getWebContext().project.id, "recent", {scopeType: "User"}).then ((recents) =>{
                 let recentProducts: Array<PS.productEntryI> = recents.data;

@@ -2,7 +2,8 @@ declare module "ProductSelector" {
     interface productTreeI {
         name: string;
         key: string;
-        children: Array<productTreeI>;
+        hidden?: boolean;
+        children?: Array<productTreeI>;
     }
 
     interface productEntryI {

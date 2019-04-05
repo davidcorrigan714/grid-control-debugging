@@ -31,18 +31,16 @@ var pmdmSoftwareProducts : Array<pmdmProductI> = [];
 var pmdmHardwareProducts : Array<pmdmProductI> = [];
 var allProducts : Array<productInfoI> = [];
 var grid : Grids.Grid;
-//var authorized : boolean = false;
+var menu : Menus.Menu<Menus.MenuBarOptions>;
 
-// TODO Disable things if PMDM connection doesn't work
-
-function setAllActive(nodes : productInfoI) : void {
-  for(var i in nodes){
-    nodes[i].active = true;
-    setAllActive(nodes[i].children);
-  }
+function setAllActive(nodes : productInfoI[]) : void {
+  nodes.forEach(function (node : productInfoI){
+    node.active = true;
+    setAllActive(node.children);
+  });
 }
 
-function addGridKeys(row, currentKey : number ) : number{
+function addGridKeys(row : productInfoI[] , currentKey : number ) : number{
   for(var i in row)
   {
     row[i].gridKey = currentKey;
@@ -133,13 +131,13 @@ function deleteItems(gridKeysToDelete : Array<number>) : void{
   for(var i = 0;i<searchLen;i++){
     var childSearchLen = allProducts[i].children.length;
     for(var x = 0;x<childSearchLen;x++){
-      if(gridKeysToDelete.indexOf(allProducts[i].children[x].gridKey) > 0){
+      if(gridKeysToDelete.indexOf(allProducts[i].children[x].gridKey) >= 0){
         allProducts[i].children.splice(x,1);
         x--;
         childSearchLen--;
       }
     }
-    if(gridKeysToDelete.indexOf(allProducts[i].gridKey) > 0){
+    if(gridKeysToDelete.indexOf(allProducts[i].gridKey) >= 0){
       allProducts.splice(i,1);
       i--;
       searchLen--;
@@ -147,43 +145,6 @@ function deleteItems(gridKeysToDelete : Array<number>) : void{
   }
   refreshGrid();
 }
-
-/*
-function updateProductInfoSidebar() : void{
-  var indices = grid.getSelectedDataIndices();
-
-  if(indices.length == 1) {
-    var rowData = grid.getRowData(indices[0]);
-    var rootNode = getRootNode(rowData.gridKey);
-
-    // Root node is the product name
-    $("#info-product").html(rootNode.name);
-
-    $("#info-key").html(rowData.key);
-    if (rowData.gridKey == rootNode.gridKey){
-      // Root Node
-      $("#info-version").html('');
-      $("#info-external-update").attr("hidden",!rootNode.imported || !authorized);
-      $("#info-date-area").attr("hidden",true);
-      if(rootNode.imported){
-        $("#info-imported").text("Imported from " + rootNode.source + ".");
-      }else{
-        $("#info-imported").text("");
-      } 
-    }else{
-      // Not the root node
-      $("#info-version").html(rowData.name);
-      $("#info-date").attr("readonly", rootNode.imported || !authorized);
-      $("#info-date").datepicker('update',rowData.firstAvailable);
-      $("#info-date-area").attr("hidden",false);
-      $("#info-imported").text("");
-      $("#info-external-update").attr("hidden",true);
-    }
-  }else{
-    ResetProductInfo();
-  }
-}
-*/
 
 function refreshGrid() : void
 {
@@ -239,11 +200,9 @@ var gridOptions : Grids.IGridOptions = {
     { text: "Active", width: 60, getCellContents: function  (rowInfo, dataIndex, expandedState, level, column, indentIndex, columnOrder)  {
         var node : productInfoI = grid.getRowData(rowInfo.dataIndex);
         var divStuff : string = "role='row' style='width:"+column.width+"px' class='grid-cell'";
-        if('active' in node && node.active){
-          return $("<div "+divStuff+" class='toggle-active' gridKey='"+node.gridKey+"'>Y</div>");
-        }else{
-          return $("<div "+divStuff+" class='toggle-active' gridKey='"+node.gridKey+"'>N</div>");
-        }
+        var text = node.active ? 'Y' : 'N';
+        // Might be a more generic/cleaner way to bind the event but this works for now
+        return $("<div "+divStuff+"><a href='#'>"+text+"</a></div>").on("click", () => { toggleActive(node.gridKey);});
       }
     },
 //            { text: "Key", width: 120, index: "key" },
@@ -254,19 +213,12 @@ var gridOptions : Grids.IGridOptions = {
         var divStuff = "role='row' style='width:"+column.width+"px' class='grid-cell'";
         if(root != null && node != root){
           if(root.imported){
-            // TODO TS doesn't like that 'firstAvailable' might not be in node
-            if('firstAvailable' in node){
-              return $("<div "+divStuff+">"+node.firstAvailable+"</div>");
-            }else{
-              return $("<div "+divStuff+"></div>");
-            }
+            // Imported products don't allow the user to change the date
+            var text = 'firstAvailable' in node ? node.firstAvailable : '';
+            return $("<div "+divStuff+">"+text+"</div>");
           }else{
-            // TODO
-            //if('firstAvailable' in node){
-              return $("<div "+divStuff+"><a href='#' onClick='setDate("+node.gridKey+");'>"+node.firstAvailable+"</a></div>");
-            //}else{
-            //  return $("<div "+divStuff+"><a href='#' onClick='setDate("+node.gridKey+");'); return false;'>Set Date</a></div");
-            //}
+            var text = node.firstAvailable.length > 0 ? node.firstAvailable : "Set Date";
+            return $("<div "+divStuff+"><a href='#'>"+node.firstAvailable+"</a></div>").on("click", () => { setDate(node.gridKey);}) ;
           }
         }else{
           return $("<div "+divStuff+"></div>");
@@ -276,16 +228,8 @@ var gridOptions : Grids.IGridOptions = {
   ]
 };
 
-// This is used for the onClick of the active field on the grid
-// Might have a better way to do this that makes TS happy but I'm not figuring it out atm
-// function toggleActive(dataIndex : number) : void
-
-$("#productTree").on('click', () => {
-  console.log($(this));
-  console.log($(this).attr('gridKey'));
-
-  var dataIndex = parseInt($(this).attr('gridKey'));
-  var ret : any = getNode(dataIndex, allProducts);
+function toggleActive(gridKey : number) : void {
+  var ret : any = getNode(gridKey, allProducts);
   if(ret == null) {
     return;
   }
@@ -294,15 +238,35 @@ $("#productTree").on('click', () => {
   node.active = !node.active;
 
   grid.redraw();
-});
-
-/*
-function setDate(dataIndex)
-{
-  console.log("Date: " + dataIndex);
-  return false;
 }
-*/
+
+function setDate(gridKey : number) : void
+{
+  var ret1 : any = getNode(gridKey, allProducts);
+  var ret2 : any = getRootNode(gridKey);
+  if(ret1 == null || ret2 == null) {
+    return;
+  }
+
+  var node : productInfoI = ret1;
+  var rootNode : productInfoI = ret2;
+  $("#datePickerProduct").html(rootNode.name);
+  $("#datePickerVersion").html(node.name);
+  $("#datePickerPicker").val(node.firstAvailable);
+  $("#datePickerGridKey").val(gridKey);
+  $("#datePickerModal").modal();
+}
+
+$("#datePickerCompletion").on("click", () => {
+  var gridKey = parseInt($("#datePickerGridKey").val());
+  var ret1 : any = getNode(gridKey, allProducts);
+  if(ret1 == null) {
+    return;
+  }
+  var node : productInfoI = ret1;
+  node.firstAvailable = $('#datePickerPicker').datepicker('getFormattedDate');
+  grid.redraw();
+});
 
 function loadGridFromDB() : void{
   getDoc<Array<productInfoI>>("products").then( function(result){
@@ -326,30 +290,6 @@ function loadGridFromDB() : void{
   );
 }
 
-// TODO
-/*
-$('#info-date').datepicker({
-  format: "yyyy-mm-dd",
-  enableOnReadonly: false
-});
-*/
-
-$('#info-date').on('changeDate', function (){
-  // TODO
-  flagDirty();
-  // var ref = $('#jstree_demo').jstree(true);
-  // var node = $('#info-node').val();
-  // ref.get_node(node).original.firstAvailable = $('#info-date').datepicker('getFormattedDate');
-  // ref.sort(ref.get_node(ref.get_node(node).parent).id, true);
-});
-
-/*
-function ResetProductInfo(){
-  $("#info-product").html("Selected Prodcut");
-  $("#info-version").html("");
-}
-*/
-
 function productKeyExists(key : string) : boolean
 {
   for(var i in allProducts){
@@ -365,10 +305,11 @@ function SoftwareProductFromPMDM(productId : string) : void{
   flagDirty();
   $.ajax({url: localURL+"/pmdmsoftwareproduct?productId="+productId, success: function(result){
     var products : productInfoI = JSON.parse(result);
+    console.log(products);
     if(productKeyExists(products.key)){
       alert("Product already exists.");
     }else{
-      setAllActive(products);
+      setAllActive([products]);
       allProducts.push(products);
       refreshGrid();
     }
@@ -383,7 +324,7 @@ function HardwareProductFromPMDM(productId : string) : void{
     if(productKeyExists(products.key)){
       alert("Product already exists.");
     }else{
-      setAllActive(products);
+      setAllActive([products]);
       allProducts.push(products);
       refreshGrid();
     }
@@ -392,7 +333,7 @@ function HardwareProductFromPMDM(productId : string) : void{
 
 // Autocomplete for the pmdm dialog
 $.ajax({url: localURL+"/pmdmsoftwareproducts", success: function(result){
-  var pmdmSoftwareProducts : Array<pmdmProductI> = JSON.parse(result);
+  pmdmSoftwareProducts = JSON.parse(result);
   pmdmSoftwareProducts.sort();
   var tagValues : Array<autocompleteI> = [];
   for(var product in pmdmSoftwareProducts){
@@ -411,6 +352,7 @@ $.ajax({url: localURL+"/pmdmsoftwareproducts", success: function(result){
             },
     appendTo: ".pmdmAutoFill"
   });
+  setMenuItemDisabled("import-pmdm-software",false);
 }});
 
 // Autocomplete for the pmdm dialog
@@ -434,8 +376,10 @@ $.ajax({url: localURL+"/pmdmhardwareproducts", success: function(result){
             },
     appendTo: ".pmdmHardwareAutoFill"
   });
+  setMenuItemDisabled("import-pmdm-hardware",false);
 }});
 
+/*
 function addAllSoftwareProducts(){
   flagDirty();
   for(var id in pmdmSoftwareProducts)
@@ -444,6 +388,7 @@ function addAllSoftwareProducts(){
     $.ajax({url: localURL+"/pmdmsoftwareproduct?productId="+productId, async:false, success: function(result){
       var products = JSON.parse(result);
       if(!productKeyExists(products.key)){
+        setAllActive([products]);
         allProducts.push(products);
       } 
     }});
@@ -460,16 +405,19 @@ function addAllHardwareProducts(){
     $.ajax({url: localURL+"/pmdmhardwareproduct?productId="+productId, async:false, success: function(result){
       var products = JSON.parse(result);
       if(!productKeyExists(products.key)){
+        setAllActive([products]);
         allProducts.push(products);
       } 
     }});
   }
   refreshGrid();
 }
+*/
 
-function findSoftwareProduct(name: string) : pmdmProductI | null{
+
+function findSoftwareProduct(id: string) : pmdmProductI | null{
   for(var i in pmdmSoftwareProducts){
-    if(pmdmSoftwareProducts[i].name == name){
+    if(pmdmSoftwareProducts[i].productId == id){
       return pmdmSoftwareProducts[i];
     }
   }
@@ -660,12 +608,15 @@ function updateFromPMDM() : void{
   }
 }
 
-// TODO
-/*
 $('#new-version-date').datepicker({
-  format: "yyyy-mm-dd",
-  enableOnReadonly: false
-});*/
+  // @ts-ignore It's getting the types from the wrong datepicker type
+  format: "yyyy-mm-dd"
+});
+
+$('#datePickerPicker').datepicker({
+  // @ts-ignore It's getting the types from the wrong datepicker type
+  format: "yyyy-mm-dd"
+});
 
 $('#pmdmModal').on('shown.bs.modal', function () {
     $('#tags').trigger('focus');
@@ -679,6 +630,18 @@ $('#manualModal').on('shown.bs.modal', function () {
   $('#newManualProductName').focus();
 });
 
+function hasActiveChild(node: productInfoI) : boolean {
+  if(node.children !== undefined){
+    for(var i in node.children)
+    {
+      if(node.children[i].active == true){
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 function save()
 {
   // Save the main config used by the hub
@@ -687,21 +650,35 @@ function save()
   // Generate the condensed objects for the search indexer and selector form 
 
   var fullTreeCollapsed : Array<PS.productTreeI> = []; // Removes Extraneous fields
-  for (var i in allProducts) {
-    var toAdd : PS.productTreeI = { name: allProducts[i].name, key: allProducts[i].key, children: [] };
-    for(var x in allProducts[i].children) {
-      toAdd.children.push({ name: allProducts[i].children[x].name, key: allProducts[i].children[x].key, children: [] });  
+  allProducts.forEach(function (product : productInfoI){
+    if(product.active === true || hasActiveChild(product)){
+      var toAdd : PS.productTreeI = { name: product.name, key: product.key};
+      if(product.active === false ){
+        toAdd.hidden = true;
+      }
+      if(product.children !== undefined){
+        if(product.children.length > 0){
+          toAdd.children = [];
+          for(var x in product.children) {
+            if(product.children[x].active === true){
+              toAdd.children.push({ name: product.children[x].name, key: product.children[x].key});  
+            }
+          }
+        }
+      }
+      fullTreeCollapsed.push(toAdd);
     }
-    fullTreeCollapsed.push(toAdd);
-  }
+  });
 
   var flatProducts : Array<{name: string, i:string}> = [];
-  for(var i in fullTreeCollapsed){ // Collapses the tree into a flat list for the index
-    flatProducts.push({name: fullTreeCollapsed[i].name, i: ''})
-    for(var x in fullTreeCollapsed[i].children){
-      flatProducts.push({name: fullTreeCollapsed[i].name + ": " + fullTreeCollapsed[i].children[x].name, i: ''})
+  fullTreeCollapsed.forEach(function (t : PS.productTreeI){
+    flatProducts.push({name: t.name, i: ''})
+    if(t.children !== undefined){
+      t.children.forEach(function (c){
+        flatProducts.push({name: t.name + ": " + c.name, i: ''}) 
+      });
     }
-  }
+  });
 
   // Remove the stop word filter from the indexing process.
   // Otherwise you can't search for 'CAN' devices.
@@ -730,9 +707,9 @@ var menuItems : Array<Menus.IMenuItemSpec> = [
   { separator: true },
   { id: "new-version", text: "New Version", noIcon: true },
   { separator: true },
-  { id: "import-pmdm-software", text: "Import Software - PMDM", noIcon: true },
+  { id: "import-pmdm-software", text: "Import Software - PMDM", disabled: true, noIcon: true },
   { separator: true},
-  { id: "import-pmdm-hardware", text: "Import Hardware - PMDM", noIcon: true },
+  { id: "import-pmdm-hardware", text: "Import Hardware - PMDM", disabled: true, noIcon: true },
   { separator: true},
 /*
   { id: "import-1000-software", text: "All Software ", noIcon: true },
@@ -764,14 +741,15 @@ var menubarOptions : Menus.MenuBarOptions = {
         $("#pmdmHardwareModal").modal();
         break;
       case "import-1000-software":
-        addAllSoftwareProducts();
+        //addAllSoftwareProducts();
         break;
       case "import-1000-hardware":
-        addAllHardwareProducts();
+        //addAllHardwareProducts();
         break;
       case "delete-items":
         var gridKeysToDelete : Array<number> = [];
         var indices = grid.getSelectedDataIndices();
+
         if(indices.length == 0){
           alert("No items selected.");
           return;
@@ -788,6 +766,7 @@ var menubarOptions : Menus.MenuBarOptions = {
         break;
       case "save":
         save();
+        // TODO Modal, or confirmation of some kind
         break;
       default:
         alert("Unhandled action: " + command);
@@ -795,7 +774,20 @@ var menubarOptions : Menus.MenuBarOptions = {
     }
   }
 };
-Controls.create(Menus.MenuBar, $("#menubar"), menubarOptions);
+
+menu = Controls.create(Menus.MenuBar, $("#menubar"), menubarOptions);
+
+function setMenuItemDisabled(id: string, value: boolean) : void
+{
+  for(var i in menuItems)
+  {
+    if(menuItems[i].id == id){
+      menuItems[i].disabled = value;
+      menu.updateItems(menuItems);
+      return;
+    }
+  }
+}
 
 $('#newManualProductName').keypress(function(event) {
   if (event.keyCode == 13 || event.which == 13) {

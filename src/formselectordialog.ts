@@ -73,14 +73,19 @@ $("#searchQuery").on('input',function (){
 
 $("#products").on('change', function(){
     $("#products2").empty();
-    $("#products2").append("<option value='" +
-            JSON.stringify({name: products[$("#products").val()].name, key: products[$("#products").val()].key})
-            + "'>" + products[$("#products").val()].name + "</option>");
-    var productIndex = $("#products").val();
-    for(var i in products[productIndex].children){
+    var product : PS.productTreeI = products[$("#products").val()];
+    if(product.hidden !== true){
         $("#products2").append("<option value='" +
-            JSON.stringify({name: products[productIndex].name + ": " + products[productIndex].children[i].name, key: products[productIndex].key + "," + products[productIndex].children[i].key})
-            + "'>" + products[productIndex].children[i].name + "</option>");
+            JSON.stringify({name: product.name, key: product.key})
+            + "'>" + product.name + "</option>");
+    }
+    if(product.children !== undefined)
+    {
+        product.children.forEach( function(c : PS.productEntryI){
+            $("#products2").append("<option value='" +
+                JSON.stringify({name: product.name + ": " + c.name, key: product.key + "," + c.key})
+                + "'>" + c.name + "</option>");
+        });
     }
 });
 
@@ -125,8 +130,6 @@ function loadData(){
     });
 }
 
-VSS.ready(loadData);
-
 var menubarOptions : Menus.MenuBarOptions = {
     items: [
         { id: "recent", text: "Recent",  noIcon: true  },
@@ -166,3 +169,4 @@ var selectorDialog = (function(id) {
 
 // Register form object to be used across this extension
 VSS.register("form-selector-dialog", selectorDialog);
+VSS.ready(loadData);
