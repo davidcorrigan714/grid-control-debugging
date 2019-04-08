@@ -287,6 +287,7 @@ function loadGridFromDB() : void{
     $("#main-container").removeAttr("hidden");
 
     VSS.notifyLoadSucceeded();
+    $('#puppeteer-status').html("Loaded");
   },
     function(err){
       if(err.status == 404){
@@ -451,7 +452,6 @@ function addAllHardwareProducts(){
 }
 */
 
-
 function findSoftwareProduct(id: string) : pmdmProductI | null{
   for(var i in pmdmSoftwareProducts){
     if(pmdmSoftwareProducts[i].productId == id){
@@ -494,7 +494,7 @@ $("#pmdm-hardware-dialog-ok").on('click', () => {
   $("#toAddPMDMHardwareid").val("");
 });
 
-function newProductCompletion() : void{
+function newProductCompletion() : void {
   flagDirty();
   var product : string = $("#newManualProductName").val();
   console.log("Adding: "+product);
@@ -521,6 +521,8 @@ function newProductCompletion() : void{
   }
   $("#newManualProductName").val("");
 }
+
+$("#new-manual-product-ok").on('click', () => { newProductCompletion(); });
 
 function newVersionPopup(){
   var selected = grid.getSelectedDataIndices();
@@ -586,7 +588,6 @@ function sanitizeKey(key : string) : string{
 async function setDoc(file : string, contents : any, force? : boolean) : Promise<{}> { 
   return new Promise((resolve, reject) => {
     force = force || false;
-    console.log("Trying to save"+file);
     var myDoc = {
       id: file,
       data: contents,
@@ -594,9 +595,7 @@ async function setDoc(file : string, contents : any, force? : boolean) : Promise
     };
 
     VSS.getService(VSS.ServiceIds.ExtensionData).then(function(dataService : IExtensionDataService) {
-      console.log("Got the service");
       dataService.setDocument(VSS.getWebContext().project.id, myDoc).then(function(doc) {
-        console.log("Saved "+file);
         resolve();
       }, function (err){
         console.log("Error setting document"+file+"on remote serner.");
@@ -610,6 +609,26 @@ async function setDoc(file : string, contents : any, force? : boolean) : Promise
       }
     );
   });
+}
+
+function mergeActiveFlags(product : productInfoI) : void
+{
+  for(var i in allProducts){
+    if(allProducts[i].key == product.key){
+      product.active = allProducts[i].active;
+      allProducts[i].children.forEach(function (child) {
+        for(var child2 in product.children){
+          if(product.children[child2].key == child.key){
+            product.children[child2].active = child.active;
+            break;
+          }
+        }
+      });
+      return;
+    }
+  }
+  console.error("Couldn't find product in grid: " + JSON.stringify(product));
+  return;
 }
 
 $("#pmdmUpdateModal").on("shown.bs.modal",
@@ -646,20 +665,18 @@ async function () {
 
     if(pmdmType == "pmdms"){
       await getPMDMSoftwareProduct(pmdmProductId).then(function (product : productInfoI) {
-        // TODO Merge active property with existing product in grid
-        deleteProductByKey(product.key);
-
         setAllActive([product]);
+        mergeActiveFlags(product);
+        deleteProductByKey(product.key);
         allProducts.push(product);
       }).catch( function (error: string) {
         console.log("Error getting PMDM Software Product "+pmdmProductId+": " + error);
       });
     }else if(pmdmType == "pmdmh"){
       await getPMDMHardwareProduct(pmdmProductId).then(function (product : productInfoI) {
-        // TODO Merge active property with existing product in grid
-        deleteProductByKey(product.key);
-
         setAllActive([product]);
+        mergeActiveFlags(product);
+        deleteProductByKey(product.key);
         allProducts.push(product);
       }).catch( function (error: string) {
         console.log("Error getting PMDM Software Product "+pmdmProductId+": " + error);
@@ -670,6 +687,7 @@ async function () {
   }
   refreshGrid();
   $("#pmdmUpdateModal").modal('hide');
+  $('#puppeteer-status').html("PMDM Updated");
 });
 
 $('#new-version-date').datepicker({
@@ -706,7 +724,7 @@ function hasActiveChild(node: productInfoI) : boolean {
   return false;
 }
 
-$("#savingModal").on("shown.bs.modal", async function ()
+async function saveAll()
 {
   // Save the main config used by the hub
   await setDoc("products", allProducts);
@@ -763,8 +781,13 @@ $("#savingModal").on("shown.bs.modal", async function ()
   await setDoc("allproducts",{idx: JSON.stringify(idx), products: fullTreeCollapsed});
 
   clearDirty();
-  console.log("Done saving!");
+  $('#puppeteer-status').html("All saved");
   $("#savingModal").modal('hide');
+}
+
+$("#savingModal").on("shown.bs.modal", async function ()
+{
+  saveAll();
 });
 
 var menuItems : Array<Menus.IMenuItemSpec> = [
@@ -778,17 +801,29 @@ var menuItems : Array<Menus.IMenuItemSpec> = [
   { separator: true},
   { id: "update-from-pmdm", text: "Update PMDM Product", noIcon: true},
   { separator: true},
-/*
+  /*
   { id: "import-1000-software", text: "All Software ", noIcon: true },
   { separator: true },
   { id: "import-1000-hardware", text: "All Hardware", noIcon: true },
   { separator: true },
-*/
+  */
   { id: "delete-items", text: "Delete Selected", noIcon: true },
   { separator: true },
   { id: "save", text: "Save", noIcon: true },
   { separator: true }
 ];
+
+$('#save').on("click", function() {
+  console.log("save clicked!");
+  saveAll();
+});
+
+$('#updatePMDM').on("click", function () 
+{
+  console.log("update clicked!");
+  grid.selectAll();
+  $("#pmdmUpdateModal").modal();
+});
 
 var menubarOptions : Menus.MenuBarOptions = {
   items: menuItems,
@@ -807,12 +842,14 @@ var menubarOptions : Menus.MenuBarOptions = {
       case "import-pmdm-hardware":
         $("#pmdmHardwareModal").modal();
         break;
+      /*
       case "import-1000-software":
-        //addAllSoftwareProducts();
+        addAllSoftwareProducts();
         break;
       case "import-1000-hardware":
-        //addAllHardwareProducts();
+        addAllHardwareProducts();
         break;
+      */
       case "delete-items":
         var gridKeysToDelete : Array<number> = [];
         var indices = grid.getSelectedDataIndices();

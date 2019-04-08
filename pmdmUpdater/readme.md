@@ -1,0 +1,1 @@
+The update.js script uses Google's puppeteer library to load the products configuration page and update all pmdm products in the grid.
