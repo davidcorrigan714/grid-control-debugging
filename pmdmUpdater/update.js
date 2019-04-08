@@ -3,7 +3,7 @@ const util = require('util');
 var nodemailer = require('nodemailer');
 
 
-var failsafe = setTimeout(errorEmail, 60000*10);
+var failsafe = setTimeout(errorEmail, 60000*15);
 
 function errorEmail(){
 	var transporter = nodemailer.createTransport({host: "devmail.natinst.com", port: 25});
