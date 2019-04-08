@@ -61,7 +61,7 @@ try {
 
 		page.on('console', msg => console.log('PAGE LOG:', msg.text()));
 
-		page.authenticate({username:'david.corrigan@ni.com',password:'!Renee89'});
+		page.authenticate({username: process.env.AZDO_USER_EMAIL ,password: process.env.AZDO_USER_PWD});
 
 		console.log("Authenticating ...");
 

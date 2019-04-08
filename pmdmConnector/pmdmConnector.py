@@ -10,18 +10,22 @@ from urllib.parse import urlencode
 from urllib.error import URLError, HTTPError
 import json
 import re
+import os
+
+apiKey = "3e1950b0-1e9b-48e9-a145-92bbab30f6b2"
+
+#pmdmURL = "http://immix-dev.natinst.com/pmdm/odata/2/" # Dev
+#pmdmURL = "http://immix-test.natinst.com/pmdm/odata/2/" # Test
+pmdmURL = "http://immix.natinst.com/pmdm/odata/2/"  # Production
 
 app = Flask(__name__)
 CORS(app)
 
-# This file will live on an apache server somewhere, needs some cleanup and the API file should be in a config.
-# Also should get it containerized for deployment
-
-apiKey = "3e1950b0-1e9b-48e9-a145-92bbab30f6b2"
-
-pmdmURL = "http://immix-dev.natinst.com/pmdm/odata/2/" # Dev
-#pmdmURL = "http://immix-test.natinst.com/pmdm/odata/2/" # Test
-#pmdmURL = "http://immix.natinst.com/pmdm/odata/2/"  # Production
+# ensure the instance folder exists
+try:
+	os.makedirs(app.instance_path)
+except OSError:
+	pass
 
 def pmdmRequest(req):
 	urlAddress = pmdmURL+req+"ni-api-key=" + apiKey
@@ -89,7 +93,7 @@ def pmdmsoftwareproduct():
 			returnNodes.append(newEntry)
 	
 	softwareTree = {
-		'text':productName,
+		'name':productName,
 		'imported':True,
 		'source':'pmdm',
 		'key':"pmdms"+product,
@@ -99,17 +103,18 @@ def pmdmsoftwareproduct():
 	# Find all the unique product versions
 	for product in returnNodes:
 		if not any(x for x in softwareTree['children'] if x['key'] == product['nvaMarketingVersion']):
-			softwareTree['children'].append({'text':product['nvaMarketingVersion'],'key':product['nvaMarketingVersion'], 'children':[]})
+			softwareTree['children'].append({'name':product['nvaMarketingVersion'],'key':product['nvaMarketingVersion'], 'children':[]})
 
 	# Add editions to versions
 	for version in softwareTree['children']:
 		for entry in returnNodes:
+			#if version['key'] == entry['nvaMarketingVersion'] and not any(x for x in version['children'] if x['key'] == entry['nvaModelConceptId']) and not 'Media' in entry['editionType']:
 			if version['key'] == entry['nvaMarketingVersion'] and not any(x for x in version['children'] if x['key'] == entry['nvaModelConceptId']) and not 'Media' in entry['editionType']:
 				# Test cases for this: 'LabVIEW', "TestStand" and 'LabVIEW Biomedical Toolkit'
 				newName = entry['nvaEditionName'].replace(entry['productName'], '').strip().replace(version['key'],'').strip().replace('  ', ' ').replace(entry['productName'], '').strip()
 				if len(newName) == 0:
 					newName = entry['editionType']
-				version['children'].append({'text':newName,'key':entry['nvaModelConceptId'],'firstAvailable':entry['firstAvailable'], 'children':[]})
+				version['children'].append({'name':newName,'key':entry['nvaModelConceptId'],'firstAvailable':entry['firstAvailable'], 'children':[]})
 
 	# Attach a year at the version level
 	for version in softwareTree['children']:
@@ -120,11 +125,72 @@ def pmdmsoftwareproduct():
 				latestTime = edition['firstAvailable']
 		version["firstAvailable"] = latestTime
 		
+	# Remove Editions, seems odd to do all the filtering above then remove them
+	for version in softwareTree['children']:
+		version['children'] = []
+		
 	# Sort the versions
-	softwareTree['children'].sort(key=lambda k: (k['firstAvailable'], k['text']), reverse=True)
+	softwareTree['children'].sort(key=lambda k: (k['firstAvailable'], k['name']), reverse=True)
 
 	return json.dumps(softwareTree)
 
+@app.route('/pmdmhardwareproduct')
+def pmdmhardwareproduct():
+	product = request.args.get('productId')
+	# TODO: Sanity check the request and productId
+	
+	# Get the product name
+	xmlNode = pmdmRequest("/Products('"+product+"')?")
+	
+	productName = ''
+
+	if not 'entry' in xmlNode.tag:
+		return "ERROR: entry tag not found"
+
+	newEntry = {} # TODO Initialize fields to blank
+	for node in xmlNode:
+		if 'id' in node.tag:
+			newEntry['id'] = node.text
+		if 'content' in node.tag:
+			for node2 in node[0]:
+				if 'name' in node2.tag:
+					productName = node2.text
+
+	xmlNode = pmdmRequest('/Products(\''+product+'\')/modelConcepts?')
+
+	if not 'feed' in xmlNode.tag:
+		return "ERROR: Feed tag not found"
+	
+	returnNodes = []
+	
+	for child in xmlNode:
+		if 'entry' in child.tag:
+			newEntry = {} # TODO Initialize fields to blank
+			for node in child:
+				if 'id' in node.tag:
+					newEntry['id'] = node.text
+				if 'content' in node.tag:
+					for node2 in node[0]:
+						if 'name' in node2.tag:
+							newEntry['name'] = node2.text
+						if 'modelConceptId' in node2.tag:
+							newEntry['modelConceptId'] = node2.text
+
+			returnNodes.append(newEntry)
+	
+	softwareTree = {
+		'name':productName,
+		'imported':True,
+		'source':'pmdm',
+		'key':"pmdmh"+product,
+		'children':[]
+	}
+	
+	# Find all the unique product versions
+	for product in returnNodes:
+		softwareTree['children'].append({'name':product['name'],'key':product['modelConceptId'], 'children':[]})
+
+	return json.dumps(softwareTree)
 
 @app.route('/pmdmsoftwareproducts')
 def pmdmsoftwareproducts():
@@ -172,33 +238,6 @@ def pmdmhardwareproducts():
 							obj['productId'] = node2.text
 					returnNames.append(obj)
 	return json.dumps(returnNames)
-	
-# USED FOR AZDO DEV, SHOULD NOT BE PUSHED TO PRODUCTION
-@app.route('/devSetDoc')
-def setDoc():
-	doc = request.args.get('doc')
-	contents = request.args.get('contents')
-	
-	doc = re.sub('[\\\\]', '', doc)
-	doc = re.sub('[/]', '', doc)
-	
-	f = open("docs/"+doc, "w+")
-	f.write(contents)
-	
-	return ""
-	
-# USED FOR AZDO DEV, SHOULD NOT BE PUSHED TO PRODUCTION
-@app.route('/devGetDoc')
-def getDoc():
-	doc = request.args.get('doc')
-	
-	doc = re.sub('[\\\\]', '', doc)
-	doc = re.sub('[/]', '', doc)
-	
-	with open("docs/"+doc, 'r') as myfile:
-		return myfile.read()
-	
-	return ""
 
 if __name__ == "__main__":
 	context = ( 'cert/natinst.cert', 'cert/natinst.key')

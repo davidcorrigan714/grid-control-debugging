@@ -1,0 +1,1 @@
+Place natinst.cert and natinst.key into this folder

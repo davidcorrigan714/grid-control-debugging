@@ -1,0 +1,21 @@
+{
+  "name": "pmdmupdater",
+  "version": "1.0.0",
+  "description": "Updates PMDM products in AzDO.",
+  "main": "update.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "pmdm",
+    "js",
+    "node",
+    "npm"
+  ],
+  "author": "David Corrigan",
+  "license": "ISC",
+  "dependencies": {
+    "nodemailer": "^6.1.0",
+    "puppeteer": "^1.14.0"
+  }
+}
