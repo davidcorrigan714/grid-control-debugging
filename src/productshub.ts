@@ -818,7 +818,7 @@ async function saveAll()
     $("#savingModal").modal('hide');
     if(doingPMDMUpdate){
       var time = new Date();
-      setDoc("pmdmUpdateTime",time.getTime() + ": " + time.toDateString(), true);
+      setDoc("pmdmUpdateTime",time.getTime() + "<br />" + time.toDateString() + ", " + time.toTimeString(), true);
     }
     console.log("All Saved"); // Used by puppeteer update scripts, don't change this text
   }).catch( function () {
