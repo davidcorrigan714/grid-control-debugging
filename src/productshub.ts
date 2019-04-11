@@ -4,6 +4,7 @@ import * as Controls from "VSS/Controls";
 import * as Menus from "VSS/Controls/Menus";
 import * as Grids from "VSS/Controls/Grids";
 import * as lunr from "lunr";
+import * as Navigation from "VSS/SDK/Services/Navigation";
 
 interface productInfoI {
   name: string;
@@ -32,6 +33,8 @@ var pmdmHardwareProducts : Array<pmdmProductI> = [];
 var allProducts : Array<productInfoI> = [];
 var grid : Grids.Grid;
 var menu : Menus.Menu<Menus.MenuBarOptions>;
+var doingPMDMUpdate : boolean = false; // Used to flag that the page was loaded with the URL hast option to do an automated PMDM update
+var productsLoaded : boolean = false; // Prevent saving if not loaded properly. This is mostly a failsafe for saves not triggered by the GUI, ie the PMDM update routine
 
 function setAllActive(nodes : productInfoI[]) : void {
   nodes.forEach(function (node : productInfoI){
@@ -287,7 +290,8 @@ function loadGridFromDB() : void{
     $("#main-container").removeAttr("hidden");
 
     VSS.notifyLoadSucceeded();
-    $('#puppeteer-status').html("Loaded");
+    productsLoaded = true;
+    checkHashValue();
   },
     function(err){
       if(err.status == 404){
@@ -687,7 +691,10 @@ async function () {
   }
   refreshGrid();
   $("#pmdmUpdateModal").modal('hide');
-  $('#puppeteer-status').html("PMDM Updated");
+
+  if(doingPMDMUpdate){
+    saveAll();
+  }
 });
 
 $('#new-version-date').datepicker({
@@ -726,6 +733,13 @@ function hasActiveChild(node: productInfoI) : boolean {
 
 async function saveAll()
 {
+  if(!productsLoaded){
+    // This should never be hit by the user but a script hit this case during testing
+    alert("Products weren't loaded, no saving a bad list!");
+    console.log("Products weren't loaded, no saving a bad list!");
+    return;
+  }
+
   // Save the main config used by the hub
   await setDoc("products", allProducts);
 
@@ -781,8 +795,8 @@ async function saveAll()
   await setDoc("allproducts",{idx: JSON.stringify(idx), products: fullTreeCollapsed});
 
   clearDirty();
-  $('#puppeteer-status').html("All saved");
   $("#savingModal").modal('hide');
+  console.log("All Saved");
 }
 
 $("#savingModal").on("shown.bs.modal", async function ()
@@ -801,29 +815,19 @@ var menuItems : Array<Menus.IMenuItemSpec> = [
   { separator: true},
   { id: "update-from-pmdm", text: "Update PMDM Product", noIcon: true},
   { separator: true},
-  /*
+/*
   { id: "import-1000-software", text: "All Software ", noIcon: true },
   { separator: true },
   { id: "import-1000-hardware", text: "All Hardware", noIcon: true },
   { separator: true },
   */
+
   { id: "delete-items", text: "Delete Selected", noIcon: true },
   { separator: true },
   { id: "save", text: "Save", noIcon: true },
   { separator: true }
 ];
 
-$('#save').on("click", function() {
-  console.log("save clicked!");
-  saveAll();
-});
-
-$('#updatePMDM').on("click", function () 
-{
-  console.log("update clicked!");
-  grid.selectAll();
-  $("#pmdmUpdateModal").modal();
-});
 
 var menubarOptions : Menus.MenuBarOptions = {
   items: menuItems,
@@ -842,14 +846,14 @@ var menubarOptions : Menus.MenuBarOptions = {
       case "import-pmdm-hardware":
         $("#pmdmHardwareModal").modal();
         break;
-      /*
+/*
       case "import-1000-software":
         addAllSoftwareProducts();
         break;
       case "import-1000-hardware":
         addAllHardwareProducts();
         break;
-      */
+*/        
       case "delete-items":
         var gridKeysToDelete : Array<number> = [];
         var indices = grid.getSelectedDataIndices();
@@ -959,6 +963,21 @@ function checkUserAccess() : void
   });
 }
 
+function checkHashValue() : void
+{
+  VSS.getService(VSS.ServiceIds.Navigation).then(function (navigationService : Navigation.HostNavigationService) {
+    navigationService.getHash().then(function (hash) {
+      if(hash == 'doPMDMUpdate'){
+        doingPMDMUpdate = true;
+        console.log("Doing automated PMDM Update");
+        grid.selectAll();
+        $("#pmdmUpdateModal").modal();
+      }
+    });
+  });
+}
+
 grid = Controls.create(Grids.Grid, $("#productTree"), gridOptions);
 loadGridFromDB();
 VSS.ready(checkUserAccess);
+
