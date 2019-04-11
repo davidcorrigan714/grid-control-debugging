@@ -28,21 +28,25 @@ export class MultiValueControl extends React.Component<IMultiValueControlProps, 
 
     public render() {
         const {focused} = this.state;
-        return <div className={`multi-value-control ${focused ? "focused" : ""}`}>
-            <TagPicker
-                className="tag-picker"
-                selectedItems={this.props.selected || []}
-                inputProps={{
-                    readOnly: this.props.readOnly,
-                    width: this.props.width || 150,
-                    onFocus: () => this.setState({ focused: true })
-                }}
-                onChange={this._onTagsChanged}
-                onResolveSuggestions={() => []}
-                />
-            <button onClick={this._onAddProduct}>Add Product</button>
+        return (
+            <div className={`multi-value-control ${focused ? "focused" : ""}`}>
+            { this.props.options.length > 0 &&
+                <TagPicker
+                    className="tag-picker"
+                    selectedItems={this.props.selected || []}
+                    inputProps={{
+                        readOnly: this.props.readOnly,
+                        width: this.props.width || 150,
+                        onFocus: () => this.setState({ focused: true })
+                    }}
+                    onChange={this._onTagsChanged}
+                    onResolveSuggestions={() => []}
+                    />
+            }
+            <button onClick={this._onAddProduct}>Add Product(s)</button>
             <div className="error">{this.props.error}</div>
-        </div>;
+            </div>
+        );
     }
 
     private _onAddProduct = async (): Promise<void> => {

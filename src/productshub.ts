@@ -17,6 +17,13 @@ interface productInfoI {
   gridKey: number;
 }
 
+// This really should be in the SDK somewhere but I couldn't find it
+interface docI{
+  id: string;
+  __etag: number;
+  data: any;
+}
+
 interface pmdmProductI {
   name: string;
   productId: string;
@@ -35,6 +42,8 @@ var grid : Grids.Grid;
 var menu : Menus.Menu<Menus.MenuBarOptions>;
 var doingPMDMUpdate : boolean = false; // Used to flag that the page was loaded with the URL hast option to do an automated PMDM update
 var productsLoaded : boolean = false; // Prevent saving if not loaded properly. This is mostly a failsafe for saves not triggered by the GUI, ie the PMDM update routine
+var products__etag : number = 0;
+var authorized : boolean = false;
 
 function setAllActive(nodes : productInfoI[]) : void {
   nodes.forEach(function (node : productInfoI){
@@ -147,6 +156,7 @@ function deleteItems(gridKeysToDelete : Array<number>) : void{
     }
   }
   refreshGrid();
+  grid.collapseAll();
 }
 
 function deleteProductByKey(productKey : string) : void{
@@ -166,9 +176,9 @@ function refreshGrid() : void
   allProducts.sort(sortProducts);
   addGridKeys(allProducts,0);
   grid.setDataSource(new Grids.GridHierarchySource(allProducts));
-  grid.collapseAllNodes();
 }
 
+// Unfortunately this doesn't catch if a user navigates within the settings pages
 function flagDirty() : void
 {
   window.onbeforeunload = function() {
@@ -180,13 +190,13 @@ function clearDirty(){
   window.onbeforeunload = null;
 }
 
-function getDoc<T>(file : string) : Promise<T>{
+function getDoc(file : string) : Promise<docI>{
   return new Promise(function(resolve, reject)
   {
     VSS.getService(VSS.ServiceIds.ExtensionData).then(function(dataService : IExtensionDataService) {
         // Get document by id
-        dataService.getDocument(VSS.getWebContext().project.id, file).then(function(file) {
-          resolve(file.data);
+        dataService.getDocument(VSS.getWebContext().project.id, file).then(function(file : docI) {
+          resolve(file);
         }, function (err){
           reject(err); // test for err.status == 404
         });
@@ -217,7 +227,11 @@ var gridOptions : Grids.IGridOptions = {
         var divStuff : string = "role='row' style='width:"+column.width+"px' class='grid-cell'";
         var text = node.active ? 'Y' : 'N';
         // Might be a more generic/cleaner way to bind the event but this works for now
-        return $("<div "+divStuff+"><a href='#'>"+text+"</a></div>").on("click", () => { toggleActive(node.gridKey);});
+        if(authorized){
+          return $("<div "+divStuff+"><a href='#'>"+text+"</a></div>").on("click", () => { toggleActive(node.gridKey);});
+        }else{
+          return $("<div "+divStuff+">"+text+"</div>");
+        }
       }
     },
 //            { text: "Key", width: 120, index: "key" },
@@ -227,7 +241,7 @@ var gridOptions : Grids.IGridOptions = {
         var root = getRootNode(node.gridKey);
         var divStuff = "role='row' style='width:"+column.width+"px' class='grid-cell'";
         if(root != null && node != root){
-          if(root.imported){
+          if(root.imported || !authorized){
             // Imported products don't allow the user to change the date
             var text = 'firstAvailable' in node ? node.firstAvailable : '';
             return $("<div "+divStuff+">"+text+"</div>");
@@ -284,12 +298,13 @@ $("#datePickerCompletion").on("click", () => {
 });
 
 function loadGridFromDB() : void{
-  getDoc<Array<productInfoI>>("products").then( function(result){
-    allProducts = result;
+  getDoc("products").then( function(result : docI){
+    allProducts = result.data;
+    products__etag = result.__etag;
     refreshGrid();
     $("#main-container").removeAttr("hidden");
-
     VSS.notifyLoadSucceeded();
+    grid.collapseAll();
     productsLoaded = true;
     checkHashValue();
   },
@@ -298,7 +313,6 @@ function loadGridFromDB() : void{
         allProducts = [];
         refreshGrid();
         $("#main-container").removeAttr("hidden");
-
         VSS.notifyLoadSucceeded();
       }else{
         console.log("Error loading all docs " + JSON.stringify(err));
@@ -501,7 +515,6 @@ $("#pmdm-hardware-dialog-ok").on('click', () => {
 function newProductCompletion() : void {
   flagDirty();
   var product : string = $("#newManualProductName").val();
-  console.log("Adding: "+product);
   if (product != "") {
     var key : string = sanitizeKey("custom" + product);
     if(productKeyExists(key)){
@@ -518,7 +531,6 @@ function newProductCompletion() : void {
         gridKey: -1
       });
       refreshGrid();
-      console.log("Added");
     }
   }else{
     // TODO
@@ -589,21 +601,25 @@ function sanitizeKey(key : string) : string{
   return key.toLowerCase().replace(/,/g,"").replace(/;/g,"").replace(/ /g,"").replace(/&/g,"");
 }
 
-async function setDoc(file : string, contents : any, force? : boolean) : Promise<{}> { 
+function setDoc(file : string, contents : any, forceSet? : boolean, etag? : number) : Promise<docI> { 
   return new Promise((resolve, reject) => {
-    force = force || false;
+    forceSet = forceSet || false;
+    etag = etag || 0;
+    if(forceSet){ // Bypasses the consistency check of the tag
+      etag = -1
+    }
     var myDoc = {
       id: file,
       data: contents,
-      __etag: -1 //TODO Not this
+      __etag: etag
     };
 
     VSS.getService(VSS.ServiceIds.ExtensionData).then(function(dataService : IExtensionDataService) {
-      dataService.setDocument(VSS.getWebContext().project.id, myDoc).then(function(doc) {
-        resolve();
+      dataService.setDocument(VSS.getWebContext().project.id, myDoc).then(function(doc : docI) {
+        resolve(doc);
       }, function (err){
-        console.log("Error setting document"+file+"on remote serner.");
-        alert("Error setting document"+file+"on remote serner.");
+        console.log("Error setting document "+file+" on remote serner.");
+        alert("Error setting document "+file+" on remote serner.");
         reject();
       });
     }, function (err){
@@ -653,7 +669,10 @@ async function () {
     var rootNode : productInfoI | null = getRootNode(rowData.gridKey);
     if(rootNode !== null){
       if(!rootNode.imported || rootNode.source != "pmdm"){
-        alert("Product " + rootNode.name + " not from pmdm");
+        if(!doingPMDMUpdate) 
+        {
+          alert("Product " + rootNode.name + " not from pmdm");
+        }
         continue;
       }else{
         productsToUpdate.push(rootNode.key);
@@ -741,62 +760,71 @@ async function saveAll()
   }
 
   // Save the main config used by the hub
-  await setDoc("products", allProducts);
+  setDoc("products", allProducts, false, products__etag).then( async (doc : docI) => {
+    products__etag = doc.__etag;
 
-  // Generate the condensed objects for the search indexer and selector form 
+    // Generate the condensed objects for the search indexer and selector form 
 
-  var fullTreeCollapsed : Array<PS.productTreeI> = []; // Removes Extraneous fields
-  allProducts.forEach(function (product : productInfoI){
-    if(product.active === true || hasActiveChild(product)){
-      var toAdd : PS.productTreeI = { name: product.name, key: product.key};
-      if(product.active === false ){
-        toAdd.hidden = true;
-      }
-      if(product.children !== undefined){
-        if(product.children.length > 0){
-          toAdd.children = [];
-          for(var x in product.children) {
-            if(product.children[x].active === true){
-              toAdd.children.push({ name: product.children[x].name, key: product.children[x].key});  
+    var fullTreeCollapsed : Array<PS.productTreeI> = []; // Removes Extraneous fields
+    allProducts.forEach(function (product : productInfoI){
+      if(product.active === true || hasActiveChild(product)){
+        var toAdd : PS.productTreeI = { name: product.name, key: product.key};
+        if(product.active === false ){
+          toAdd.hidden = true;
+        }
+        if(product.children !== undefined){
+          if(product.children.length > 0){
+            toAdd.children = [];
+            for(var x in product.children) {
+              if(product.children[x].active === true){
+                toAdd.children.push({ name: product.children[x].name, key: product.children[x].key});  
+              }
             }
           }
         }
+        fullTreeCollapsed.push(toAdd);
       }
-      fullTreeCollapsed.push(toAdd);
+    });
+
+    var flatProducts : Array<{name: string, i:string}> = [];
+    fullTreeCollapsed.forEach(function (t : PS.productTreeI){
+      flatProducts.push({name: t.name, i: ''})
+      if(t.children !== undefined){
+        t.children.forEach(function (c){
+          flatProducts.push({name: t.name + ": " + c.name, i: ''}) 
+        });
+      }
+    });
+
+    // Remove the stop word filter from the indexing process.
+    // Otherwise you can't search for 'CAN' devices.
+    // Looking at the lunr code and filtered words it doesn't seem to be necessary for our dataset of product names
+    // @ts-ignore Best way I could find to do this without touching the lunr source
+    lunr.stopWordFilter =  lunr.generateStopWordFilter([]);
+    lunr.Pipeline.registerFunction(lunr.stopWordFilter, 'stopWordFilter')
+
+    var idx = lunr(function(builder) {
+      this.ref('i');
+      this.field('name');
+      for (var i in flatProducts) {
+        flatProducts[i].i=i;
+        this.add(flatProducts[i]);
+      }
+    });
+
+    await setDoc("allproducts",{idx: JSON.stringify(idx), products: fullTreeCollapsed}, true);
+
+    clearDirty();
+    $("#savingModal").modal('hide');
+    if(doingPMDMUpdate){
+      var time = new Date();
+      setDoc("pmdmUpdateTime",time.getTime() + ": " + time.toDateString(), true);
     }
+    console.log("All Saved"); // Used by puppeteer update scripts, don't change this text
+  }).catch( function () {
+    alert("Error saving the products, someone may have been working on this page too and saved before you. All changes will be lost.");
+    location.reload();
   });
-
-  var flatProducts : Array<{name: string, i:string}> = [];
-  fullTreeCollapsed.forEach(function (t : PS.productTreeI){
-    flatProducts.push({name: t.name, i: ''})
-    if(t.children !== undefined){
-      t.children.forEach(function (c){
-        flatProducts.push({name: t.name + ": " + c.name, i: ''}) 
-      });
-    }
-  });
-
-  // Remove the stop word filter from the indexing process.
-  // Otherwise you can't search for 'CAN' devices.
-  // Looking at the lunr code and filtered words it doesn't seem to be necessary for our dataset of product names
-  // @ts-ignore Best way I could find to do this without touching the lunr source
-  lunr.stopWordFilter =  lunr.generateStopWordFilter([]);
-  lunr.Pipeline.registerFunction(lunr.stopWordFilter, 'stopWordFilter')
-
-  var idx = lunr(function(builder) {
-    this.ref('i');
-    this.field('name');
-    for (var i in flatProducts) {
-      flatProducts[i].i=i;
-      this.add(flatProducts[i]);
-    }
-  });
-
-  await setDoc("allproducts",{idx: JSON.stringify(idx), products: fullTreeCollapsed});
-
-  clearDirty();
-  $("#savingModal").modal('hide');
-  console.log("All Saved");
 }
 
 $("#savingModal").on("shown.bs.modal", async function ()
@@ -907,33 +935,72 @@ $('#newManualProductName').keypress(function(event) {
   }
 });
 
-function restCall(token : string, url : string){
-  var ret : any;
-  $.ajax({
-      async:false,
+async function restCall(token : string, url : string) : Promise<{}> {
+  // TODO: Handle continuations
+  return new Promise(function(resolve, reject)
+  {
+    $.ajax({
       url: url ,
       dataType: 'json',
-      headers: { 'Authorization': 'Basic ' + btoa(":"+token)},
-      success: function(data, textStatus, request){
-        ret = data;
-        // TODO: Handle continuations
-        //console.log(request.getResponseHeader('X-MS-ContinuationToken'));
-      }
+      headers: { 'Authorization': 'Basic ' + btoa(":"+token)}
+    }).done( function (data) {
+      resolve(data);
+    }).fail( function (error){
+      reject(error);
+    });
   });
-  return ret;
 }
 
-function checkUserAccess() : void
+interface groupI {
+  subjectKind: string,
+  description: string,
+  domain: string,
+  principalName: string,
+  mailAddress: string,
+  origin: string,
+  originId: string,
+  displayName: string,
+  _links: {self: string, memberships: string, membershipState: string, storageKey: string},
+  url: string,
+  descriptor: string,
+}
+
+interface restGroupsI {
+  count: number;
+  value: Array <groupI>;
+}
+
+async function checkUserAccess()
 {
-  VSS.getAccessToken().then(function(tokenP){
+  VSS.getAccessToken().then(async function(tokenP){
     var token : string = tokenP.token;
     var webContext = VSS.getWebContext();
     var org = webContext.collection.name;
     var userID = webContext.user.id;
-    
-    var userDescriptor = restCall(token,"https://vssps.dev.azure.com/"+org+"/_apis/graph/descriptors/"+userID+"?api-version=5.0-preview.1").value;
+    var userDescriptor : string = '';
 
-    var groups = restCall(token, "https://vssps.dev.azure.com/"+org+"/_apis/graph/groups?api-version=5.0-preview.1").value;
+
+    await restCall(token,"https://vssps.dev.azure.com/"+org+"/_apis/graph/descriptors/"+userID+"?api-version=5.0-preview.1")
+    .then(function (data : {value: string}) {
+      userDescriptor = data.value;
+    })
+    .catch(function (){
+      // No real case the user should ever hit this case
+      alert("Unable to fetch the user descriptor. You won't be able to make any changes.");
+      return;
+    })
+
+    var groups : Array<groupI> = []; // Should make a type for this
+    await restCall(token, "https://vssps.dev.azure.com/"+org+"/_apis/graph/groups?api-version=5.0-preview.1")
+    .then(function (data : restGroupsI) {
+      groups = data.value;
+    })
+    .catch(function (){
+      // No real case the user should ever hit this case
+      alert("Unable to fetch the group list. You won't be able to make any changes.");
+      return;
+    })
+
     var groupName = "["+webContext.project.name+"]\\Product Administrators";
     groupName = groupName.toUpperCase();
     var groupDescriptor = ''
@@ -950,16 +1017,19 @@ function checkUserAccess() : void
       $("#error-text").html("'Product Administrators' group not found in project.");
       return;
     }
-    var auth = restCall(token,"https://vssps.dev.azure.com/" + org + "/_apis/graph/memberships/" + userDescriptor + "/" + groupDescriptor + "?api-version=5.0-preview.1");
-
-    if(typeof(auth) == 'undefined'){
-      // Nope
-      $("#error-text").html("You must be a member of 'Product Administrators' to edit the product database.");
-    }else{
+    
+    // This call does a 404 if the user is not in the group
+    restCall(token,"https://vssps.dev.azure.com/" + org + "/_apis/graph/memberships/" + userDescriptor + "/" + groupDescriptor + "?api-version=5.0-preview.1")
+    .then( function () {
       //User is authorized
+      authorized = true;
       $("#menubar").removeAttr("hidden");
-      //authorized = true;
-    }
+    })
+    .catch( function() {
+      authorized = false;
+      $("#error-text").html("You must be a member of 'Product Administrators' to edit the product database.");
+    });
+
   });
 }
 
@@ -981,3 +1051,10 @@ grid = Controls.create(Grids.Grid, $("#productTree"), gridOptions);
 loadGridFromDB();
 VSS.ready(checkUserAccess);
 
+getDoc("pmdmUpdateTime").then(
+  function (doc){
+    $("#pmdm-update-time").html(doc.data);
+  }
+).catch(function () {
+  $("#pmdm-update-time").attr("hidden");
+});
