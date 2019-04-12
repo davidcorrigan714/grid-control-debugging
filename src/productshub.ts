@@ -5,8 +5,9 @@ import * as Menus from "VSS/Controls/Menus";
 import * as Grids from "VSS/Controls/Grids";
 import * as lunr from "lunr";
 import * as Navigation from "VSS/SDK/Services/Navigation";
+import {refreshAreaIndex} from "./productshubareas";
 
-interface productInfoI {
+export interface productInfoI {
   name: string;
   key: string;
   source: string;
@@ -37,7 +38,7 @@ interface autocompleteI {
 var localURL : string = 'https://azdo-dev.natinst.com/pmdmConnector';
 var pmdmSoftwareProducts : Array<pmdmProductI> = [];
 var pmdmHardwareProducts : Array<pmdmProductI> = [];
-var allProducts : Array<productInfoI> = [];
+export var allProducts : Array<productInfoI> = [];
 var grid : Grids.Grid;
 var menu : Menus.Menu<Menus.MenuBarOptions>;
 var doingPMDMUpdate : boolean = false; // Used to flag that the page was loaded with the URL hast option to do an automated PMDM update
@@ -110,7 +111,7 @@ function childrenContain(children : Array<productInfoI>, gridKey : number) : boo
   return false;
 }
 
-function getRootNode(gridKey : number) : productInfoI | null
+export function getRootNode(gridKey : number) : productInfoI | null
 {
   for(var i in allProducts)
   {
@@ -307,6 +308,7 @@ function loadGridFromDB() : void{
     grid.collapseAll();
     productsLoaded = true;
     checkHashValue();
+    refreshAreaIndex();
   },
     function(err){
       if(err.status == 404){
@@ -970,6 +972,7 @@ interface restGroupsI {
   value: Array <groupI>;
 }
 
+// Could use the VSS Graph api for some of this, though it appears to be a pretty thin wrapper
 async function checkUserAccess()
 {
   VSS.getAccessToken().then(async function(tokenP){
@@ -978,7 +981,6 @@ async function checkUserAccess()
     var org = webContext.collection.name;
     var userID = webContext.user.id;
     var userDescriptor : string = '';
-
 
     await restCall(token,"https://vssps.dev.azure.com/"+org+"/_apis/graph/descriptors/"+userID+"?api-version=5.0-preview.1")
     .then(function (data : {value: string}) {

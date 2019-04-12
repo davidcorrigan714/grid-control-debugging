@@ -1,4 +1,4 @@
-<!DOCTYPE html style="height: 100%">
+<!DOCTYPE html style="height: 100%;width: 100%">
 
 <script src="js/jquery.min.js"></script>
 <script src="js/jquery-ui.min.js"></script>
@@ -29,7 +29,7 @@
     VSS.require(["dist/src/productshub"]);
   </script>
 </head>
-<body style="height: 100%">
+<body style="height: 100%; width:100%">
   <div class="container">
     <div class="row">
       <h3>NI Products</h3>
@@ -44,26 +44,36 @@
           <h3>Products</h3>
         </div>
       </div> 
+
       <div class="row overflow-auto">
-        <div class="col col-lg-12 overflow-auto" style="height: 80%" >
+        <div class="col col-lg-12 overflow-auto" style="height: 70%" >
           <div id="productTree"></div>
+          <div id="areaTree" hidden></div>
         </div>
-          <div class="col col-lg-4" hidden>
-            <h2 id="info-product">Selected Product</h2>
-            <h4 id="info-version">Version</h4>
-            <div id="info-date-area" hidden="true">
-              <h5>First Availability:</h5>
-              <input type="text" id="info-date" class="form-control" value="1980-01-01" readonly="true"> </input>
-            </div>
-            <div id="info-imported"></div>
-            <button type="button" id="info-external-update" onClick="updateFromPMDM()" hidden="true">Update from PMDM</button>
-            <input id="info-node" hidden="true"></input>
-            <div>Key:</div>
-            <div id="info-key"></div>
+      </div>
+
+      <div hidden>
+        <h3 style="display:inline">Search:   </h3><input id="searchQuery" type="text" style="width: 400px">
+        <div class="row">
+          <div class="col-md-5">
+            <h3>Products:</h3>
+            <select id="products" class="w-100" size="10"></select>
+          </div>
+          <div class="col-md-2">
+            <h3><br/></h3>
+            <button id="areaProductAdd">Add</button>
+            <button id="areaProductRemove">Remove</button> 
+          </div>
+          <div class="col-md-5">
+            <h3>Selected:</h3>
+            <select id="products2" class="w-100" size="10" multiple></select>
           </div>
         </div>
       </div>
+    </div>
   </div>
+
+  Last Automated PMDM Update: <div id="pmdm-update-time"></div>
 
   <!-- TODO: Generalize/Abstract the modals -->
 
@@ -275,6 +285,6 @@
       </div>
     </div>
   </div>
-Last Automated PMDM Update: <div id="pmdm-update-time"></div>
+
 </body>
 </html>

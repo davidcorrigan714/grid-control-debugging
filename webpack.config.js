@@ -9,7 +9,8 @@ module.exports = {
         multivalue: "./src/multivalue.ts",
         productsservice: "./src/productsservice.ts",
         formselectordialog: "./src/formselectordialog.ts",
-        productshub: "./src/productshub.ts"
+        productshub: "./src/productshub.ts",
+        productshubareas: "./src/productshubareas.ts"
     },
     output: {
         filename: "src/[name].js",
