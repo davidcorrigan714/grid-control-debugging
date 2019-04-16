@@ -5,7 +5,7 @@ import * as Menus from "VSS/Controls/Menus";
 import * as Grids from "VSS/Controls/Grids";
 import * as lunr from "lunr";
 import * as Navigation from "VSS/SDK/Services/Navigation";
-import {refreshAreaIndex} from "./productshubareas";
+import {refreshAreaIndex, saveAreaProducts, areaUsingProduct} from "./productshubareas";
 
 export interface productInfoI {
   name: string;
@@ -19,7 +19,7 @@ export interface productInfoI {
 }
 
 // This really should be in the SDK somewhere but I couldn't find it
-interface docI{
+export interface docI {
   id: string;
   __etag: number;
   data: any;
@@ -191,7 +191,8 @@ function clearDirty(){
   window.onbeforeunload = null;
 }
 
-function getDoc(file : string) : Promise<docI>{
+// TODO, move this function to something like "utils"
+export function getDoc(file : string) : Promise<docI>{
   return new Promise(function(resolve, reject)
   {
     VSS.getService(VSS.ServiceIds.ExtensionData).then(function(dataService : IExtensionDataService) {
@@ -603,7 +604,7 @@ function sanitizeKey(key : string) : string{
   return key.toLowerCase().replace(/,/g,"").replace(/;/g,"").replace(/ /g,"").replace(/&/g,"");
 }
 
-function setDoc(file : string, contents : any, forceSet? : boolean, etag? : number) : Promise<docI> { 
+export function setDoc(file : string, contents : any, forceSet? : boolean, etag? : number) : Promise<docI> { 
   return new Promise((resolve, reject) => {
     forceSet = forceSet || false;
     etag = etag || 0;
@@ -761,6 +762,8 @@ async function saveAll()
     return;
   }
 
+  saveAreaProducts(); // TODO Make this a promise or a boolean
+
   // Save the main config used by the hub
   setDoc("products", allProducts, false, products__etag).then( async (doc : docI) => {
     products__etag = doc.__etag;
@@ -769,7 +772,7 @@ async function saveAll()
 
     var fullTreeCollapsed : Array<PS.productTreeI> = []; // Removes Extraneous fields
     allProducts.forEach(function (product : productInfoI){
-      if(product.active === true || hasActiveChild(product)){
+      if((product.active === true || hasActiveChild(product)) && areaUsingProduct(product)){
         var toAdd : PS.productTreeI = { name: product.name, key: product.key};
         if(product.active === false ){
           toAdd.hidden = true;
@@ -835,6 +838,10 @@ $("#savingModal").on("shown.bs.modal", async function ()
 });
 
 var menuItems : Array<Menus.IMenuItemSpec> = [
+  { id: "save", text: "Save", noIcon: true },
+  { separator: true },
+  { id: "add-product-to-area", text: "Add Product to Area", noIcon: true, hidden: true },
+  { separator: true, hidden: true },
   { id: "new-product", text: "New Product",  noIcon: true  },
   { separator: true },
   { id: "new-version", text: "New Version", noIcon: true },
@@ -851,11 +858,7 @@ var menuItems : Array<Menus.IMenuItemSpec> = [
   { id: "import-1000-hardware", text: "All Hardware", noIcon: true },
   { separator: true },
   */
-
   { id: "delete-items", text: "Delete Selected", noIcon: true },
-  { separator: true },
-  { id: "save", text: "Save", noIcon: true },
-  { separator: true }
 ];
 
 
@@ -864,6 +867,9 @@ var menubarOptions : Menus.MenuBarOptions = {
   executeAction: function (args) {
     var command = args.get_commandName();
     switch (command) {
+      case "add-product-to-area":
+        $("#newProductForArea").modal();
+        break;
       case "new-product":
         $("#manualModal").modal();
         break;
@@ -924,6 +930,21 @@ function setMenuItemDisabled(id: string, value: boolean) : void
   {
     if(menuItems[i].id == id){
       menuItems[i].disabled = value;
+      menu.updateItems(menuItems);
+      return;
+    }
+  }
+}
+
+function menuItemVisible(id : string, visible? : boolean)
+{
+  for(var i in menuItems)
+  {
+    if(menuItems[i].id == id){
+      if(visible != undefined)
+        menuItems[i].hidden = !visible;
+      else
+        menuItems[i].hidden = false;
       menu.updateItems(menuItems);
       return;
     }
@@ -1049,6 +1070,41 @@ function checkHashValue() : void
   });
 }
 
+$("#titleBarProducts").on("click", function () {
+  $("#productTree").removeAttr("hidden");
+  $("#areaTree").attr("hidden","");
+  $("#titleBarProductsDiv").attr('class', 'titleSelected');
+  $("#titleBarProducts").attr('class', 'titleSelected');
+  $("#titleBarAreasDiv").attr('class', 'titleUnselected');
+  $("#titleBarAreas").attr('class', 'titleUnselected');
+
+  
+  menuItemVisible("add-product-to-area", false);
+  menuItemVisible("new-product");
+  menuItemVisible("new-version");
+  menuItemVisible("import-pmdm-software");
+  menuItemVisible("import-pmdm-hardware");
+  menuItemVisible("update-from-pmdm");
+  menuItemVisible("delete-items");
+});
+
+$("#titleBarAreas").on("click", function () {
+  $("#areaTree").removeAttr("hidden");
+  $("#productTree").attr("hidden","");
+  $("#titleBarProductsDiv").attr('class', 'titleUnselected');
+  $("#titleBarProducts").attr('class', 'titleUnselected');
+  $("#titleBarAreasDiv").attr('class', 'titleSelected');
+  $("#titleBarAreas").attr('class', 'titleSelected');
+
+  menuItemVisible("add-product-to-area");
+  menuItemVisible("new-product",false);
+  menuItemVisible("new-version",false);
+  menuItemVisible("import-pmdm-software",false);
+  menuItemVisible("import-pmdm-hardware",false);
+  menuItemVisible("update-from-pmdm",false);
+  menuItemVisible("delete-items",false);
+});
+
 grid = Controls.create(Grids.Grid, $("#productTree"), gridOptions);
 loadGridFromDB();
 VSS.ready(checkUserAccess);
@@ -1058,5 +1114,5 @@ getDoc("pmdmUpdateTime").then(
     $("#pmdm-update-time").html(doc.data);
   }
 ).catch(function () {
-  $("#pmdm-update-time").attr("hidden");
+  $("#pmdm-update-time").attr("hidden","");
 });

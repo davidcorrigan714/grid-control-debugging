@@ -3,12 +3,60 @@ import * as PS from "ProductSelector";
 import * as lunr from "lunr";
 import * as Menus from "VSS/Controls/Menus";
 import { CommandEventArgs } from "VSS/Events/Handlers";
+import { WorkItemFormService, IWorkItemFormService } from "TFS/WorkItemTracking/Services";
 import * as Controls from "VSS/Controls";
+//import { getDoc, docI } from "./productshub";
+//import {AreaProductsI } from "./productshubareas";
+
+export interface docI {
+    id: string;
+    __etag: number;
+    data: any;
+  }
+
+// TODO, move this function to something like "utils"
+export function getDoc(file : string) : Promise<docI>{
+    return new Promise(function(resolve, reject)
+    {
+      VSS.getService(VSS.ServiceIds.ExtensionData).then(function(dataService : IExtensionDataService) {
+          // Get document by id
+          dataService.getDocument(VSS.getWebContext().project.id, file).then(function(file : docI) {
+            resolve(file);
+          }, function (err){
+            reject(err); // test for err.status == 404
+          });
+      });
+    });
+  }
+
+interface AreaProductsI {
+    id: number;
+    products: string[];
+}
+
+///////
 
 var products : Array<PS.productTreeI> = [];
 var flatProducts : Array<PS.productTreeI> = [];
 var recentProducts : Array<PS.productEntryI> = [];
 var idx : lunr.Index;
+var validProducts: string[] = [];
+
+function getAreaId() : Promise<number>
+{
+    return new Promise(function(resolve, reject)
+    {
+        WorkItemFormService.getService().then(function (service : IWorkItemFormService){
+            service.getFieldValue("Area ID").then( function (obj : number){
+                resolve(obj);
+            }, function (err){
+                reject(err);
+            });
+        }, function (err) {
+            reject(err);
+        });
+    });
+}
 
 function resultsSort(a : lunr.Index.Result , b : lunr.Index.Result) : number
 {
@@ -30,7 +78,9 @@ function resultsSort(a : lunr.Index.Result , b : lunr.Index.Result) : number
 function addAllProductsToSearchPage() : void {
     var toAdd:string = "";
     for(var x : number = 0;x<products.length;x++){
-        toAdd += "<option value=\"" + x + "\">" + products[x].name + "</option>";
+        if(validProducts.indexOf(products[x].key) >= 0){
+            toAdd += "<option value=\"" + x + "\">" + products[x].name + "</option>";
+        }
     }
     $("#products").append(toAdd);
 }
@@ -54,7 +104,7 @@ $("#searchQuery").on('input',function (){
 
         for(var i = 0;i<length;i++){
             var rootKey:string = flatProducts[results[i].ref].key.split(',')[0];
-            if(usedKeys.indexOf(rootKey) < 0){
+            if(usedKeys.indexOf(rootKey) < 0 && validProducts.indexOf(rootKey) > 0){
                 usedKeys.push(rootKey);
                 for(var x = 0;x<products.length;x++){
                     if(products[x].key == rootKey){
@@ -106,7 +156,35 @@ $("#recent-products").on('change', function(){
 });
 
 // Called once the VSS extension API is ready
-function loadData(){
+async function loadData(){
+    var AreaId :number = 0;
+    await getAreaId().then(function (id: number) : void {
+        AreaId = id;
+    }).catch(function (err){
+        console.log("Area ID Failed to load: ");
+        console.log(err);
+        // TODO, disable interaction & saving
+        return;
+    });
+
+    await getDoc("areaProducts").then( function (areaProductsDoc : docI) {
+        var areaProductList : AreaProductsI[] = areaProductsDoc.data;
+        for(var i in areaProductList)
+        {
+            if(areaProductList[i].id == AreaId){
+                validProducts = areaProductList[i].products;
+                break;
+            }
+        }
+    }).catch( function (err){
+        console.log("Area products failed to load: ");
+        console.log(err);
+        // TODO, disable interaction & saving
+        return;
+    });
+
+    console.log(validProducts);
+
     var extensionCtx = VSS.getExtensionContext();
     var contributionId = extensionCtx.publisherId + "." + extensionCtx.extensionId + ".form-products-service";
     VSS.getServiceContribution(contributionId).then( function (contributionObj : IServiceContribution ){
@@ -117,7 +195,10 @@ function loadData(){
             recentProducts = productDB.recentProducts;
 
             for(var i in recentProducts){
-                $('#recent-products').append("<option value=\"" + i + "\">" + recentProducts[i].name + "</option>");
+                if(validProducts.indexOf(recentProducts[i].key.split(",")[0]))
+                {
+                    $('#recent-products').append("<option value=\"" + i + "\">" + recentProducts[i].name + "</option>");
+                }
             }
 
             addAllProductsToSearchPage();

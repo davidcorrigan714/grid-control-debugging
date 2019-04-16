@@ -5,16 +5,55 @@ import * as WIT from "TFS/WorkItemTracking/RestClient";
 import * as Contracts from "TFS/WorkItemTracking/Contracts";
 import * as lunr from "lunr";
 //import * as PS from "ProductSelector";
-import {allProducts, getRootNode} from "./productshub";
+import {allProducts, getRootNode, getDoc, setDoc, docI, productInfoI} from "./productshub";
 
-/*
-interface AreaPathsI extends Contracts.WorkItemClassificationNode{
-    products : Array<PS.productEntryI>;
-}*/
+export interface AreaProductsI {
+    id: number;
+    products: string[];
+}
+
+interface AreasAndProductsI{
+    products: string[];
+    name: string;
+    id: number;
+    children: AreasAndProductsI[];
+}
+
+var areaProducts : AreaProductsI[] = [];
+var projectAreas : Contracts.WorkItemClassificationNode;
+var areasAndProducts : AreasAndProductsI[] = [];
+var selectedArea : AreaProductsI | undefined;
 
 var grid : Grids.Grid;
 var idx : lunr.Index;
-//var areas : AreaPathsI;
+
+$("#areaTree").on("click", function(){
+    selectedArea = undefined;
+
+    var selected = grid.getSelectedDataIndices();
+
+    if(selected.length == 0){
+      return;
+    }
+
+    selectedArea = grid.getRowData(selected[0]);
+});
+
+$("#newProductForAreaOk").on("click", function () {
+    if(selectedArea != undefined)
+    {
+        var productNode = getRootNode(parseInt($("#products").val()));
+        if(productNode)
+        {
+            if(productNode.active == true){
+                selectedArea.products.push(productNode.key);
+            }
+        }
+        grid.redraw();
+    }else{
+        alert("No area selected.");
+    }
+});
 
 function resultsSort(a : lunr.Index.Result , b : lunr.Index.Result) : number
 {
@@ -32,24 +71,72 @@ function resultsSort(a : lunr.Index.Result , b : lunr.Index.Result) : number
     }
 }
 
+function refreshGridFromData() : void
+{
+    grid.setDataSource(new Grids.GridHierarchySource(areasAndProducts));
+}
+
+// Walk the area tree and merge it with the associated products for the grid
+function loadProductsToAreas(node : Contracts.WorkItemClassificationNode, parent : AreasAndProductsI[]) : void{
+
+    var newProduct : AreasAndProductsI = 
+    {
+        products: [],
+        name: node.name,
+        id: node.id,
+        children: []
+    };
+
+    for ( var i in areaProducts)
+    {
+        if (areaProducts[i].id == node.id)
+        {
+            newProduct.products = areaProducts[i].products;
+            break;
+        }
+    }
+
+    parent.push(newProduct);
+
+    if(node.children != undefined)
+        node.children.forEach(child => loadProductsToAreas(child, newProduct.children));
+}
+
+// Gets the currently configured area paths, and the area paths in the system
 async function LoadAreaPaths() {
-  // Get all the area paths
-  var WebContext = VSS.getWebContext();
-  var WITClient = WIT.getClient();
-  var rootNodes : Contracts.WorkItemClassificationNode[] = [];
-  var nodes : Contracts.WorkItemClassificationNode[] = [];
 
-  await WITClient.getRootNodes(WebContext.project.name).then(function (retNodes : Contracts.WorkItemClassificationNode[]){
-    rootNodes = retNodes;
-  });
+    await getDoc("areaProducts").then(function (doc : docI) {
+    areaProducts = doc.data;
+    }).catch(function (err){
+    if(err.status == 404){
+            areaProducts = [];
+        }else{
+            // TODO: Hide the GUI? Alert?
+            console.log("Error loading area products " + JSON.stringify(err));
+            return;
+        }
+    });
 
-  await WITClient.getClassificationNodes(WebContext.project.name, [rootNodes[0].id],50).then(function (retNodes : Contracts.WorkItemClassificationNode[]){
-    nodes = retNodes;
-  });
+    await WIT.getClient().getRootNodes(VSS.getWebContext().project.name, 50)
+    .then(function (retNodes : Contracts.WorkItemClassificationNode[]){
+        projectAreas = retNodes[0];
+    }, function (err){
+        console.log("Failed to get area paths\n");
+        console.log("err");
+        // TODO, disable GUI?
+        return;
+    });
 
-  grid.setDataSource(new Grids.GridHierarchySource([nodes[0]]));
-  grid.collapseAll();
-  grid.expandByLevel(1);
+    // TODO: Prune the products/area list to only valid areas
+
+    loadProductsToAreas(projectAreas, areasAndProducts);
+
+    console.log(projectAreas);
+    console.log(areasAndProducts);
+
+    refreshGridFromData();
+    grid.collapseAll();
+    grid.expandByLevel(1);
 }
 
 var gridOptions : Grids.IGridOptions = {
@@ -58,10 +145,60 @@ var gridOptions : Grids.IGridOptions = {
     width: "100%",
     allowMultiSelect: false,
     columns: [
-      { text: "Area", width: 300, index: "name" },
-      { text: "Valid Products", index: "products" },
+        { text: "Area", width: 300, index: "name" },
+        { text: "Valid Products", width: 6000, index: "products",
+            getCellContents: function (rowInfo, dataIndex, expandedState, level, column, indentIndex, columnOrder) : JQuery<HTMLElement> {
+                var node : AreasAndProductsI = grid.getRowData(rowInfo.dataIndex);
+                var out : JQuery<HTMLElement> = $("<div role='row' style='width:"+column.width+"px' class='grid-cell'></div>");
+                var first : boolean = true;
+                node.products.forEach(product => {
+                    for(var i in allProducts)
+                    {
+                        if(allProducts[i].key == product){
+                            // TODO put the div style into a CSS file
+                            if(!first){
+                                out.append(", ");
+                            }
+                            first = false;
+                            out.append(allProducts[i].name);
+                            out.append($(" <div style='display: inline; background-color: var(--component-label-default-color-hover); padding-left: 3px;padding-right: 3px;'><a href='#'>X</a></div>")
+                                .on("click", function () {removeProductFromArea(product, node.id);}));
+                            break;
+                        }
+                    }
+                });
+                return out;
+            }
+        }
     ]
-  };
+};
+
+function findArea(areaId: number, currentArea : AreasAndProductsI[]) : AreasAndProductsI | undefined
+{
+    var area :AreasAndProductsI;
+    for( var i in currentArea)
+    {
+        area = currentArea[i];
+        if(area.id == areaId){
+            return area;
+        }
+        var inChildren = findArea(areaId, area.children);
+        if( inChildren != undefined){
+            return inChildren;
+        }
+    }
+    return undefined;
+}
+
+function removeProductFromArea(productKey : string, areaId : number) : void{
+    var area : AreaProductsI | undefined = findArea(areaId, areasAndProducts);
+    if(area != undefined){
+        area.products.splice(area.products.indexOf(productKey), 1);
+        grid.redraw();
+    }else{
+        console.error("Could not find area: " + areaId);
+    }
+}
 
 grid = Controls.create(Grids.Grid, $("#areaTree"), gridOptions);
 
@@ -85,7 +222,6 @@ export function refreshAreaIndex(){
 
 $("#searchQuery").on('input',function (){
   $("#products").empty();
-  $("#products2").empty();
 
   if($(this).val() == ''){
       //addAllProductsToSearchPage(); TODO
@@ -116,24 +252,32 @@ $("#searchQuery").on('input',function (){
   }
 });
 
-$("#products").on('change', function(){
+function repopulateAreaProducts(node : AreasAndProductsI[]) : void
+{
+    for(var i in node){
+        if(node[i].products.length > 0){
+            areaProducts.push({id: node[i].id, products: node[i].products});
+        }
+        repopulateAreaProducts(node[i].children);
+    }
+}
 
-});
-
-$("#areaProductAdd").on("click", function (){
-    var productNode = getRootNode(parseInt($("#products").val()));
-    if(productNode)
+// Generally should be used after a call to repopulateAreaProducts
+export function areaUsingProduct(product : productInfoI) : boolean {
+    for(var i in areaProducts)
     {
-        if(productNode.active == true){
-            $("#products2").append("<option value='" +
-                JSON.stringify({name: productNode.name, key: productNode.key})
-                + "'>" + productNode.name + "</option>");
+        if(areaProducts[i].products.indexOf(product.key) >= 0){
+            return true;
         }
     }
-});
+    return false;
+}
 
-$("#areaProductRemove").on("click", function (){
-    $("#products3 option:selected").remove();
-});
+export function saveAreaProducts(){
+    // TODO Only save if loaded properly
+    areaProducts = [];
+    repopulateAreaProducts(areasAndProducts);
+    setDoc("areaProducts",areaProducts, true); // TODO eTag stuff
+}
 
 VSS.ready(LoadAreaPaths);
