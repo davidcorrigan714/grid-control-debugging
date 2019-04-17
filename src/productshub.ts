@@ -309,7 +309,6 @@ function loadGridFromDB() : void{
     grid.collapseAll();
     productsLoaded = true;
     checkHashValue();
-    //refreshAreaIndex();
   },
     function(err){
       if(err.status == 404){

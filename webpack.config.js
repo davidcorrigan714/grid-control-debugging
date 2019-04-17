@@ -52,8 +52,6 @@ module.exports = {
             { from: "./node_modules/bootstrap/dist/css/bootstrap.min.css", to: "./css" },
             { from: "./node_modules/jquery-ui-bundle/jquery-ui.min.css", to: "./css"},
             { from: "./node_modules/jquery/dist/jquery.min.js", to: "./js" },
-            { from: "./node_modules/jstree/dist/jstree.min.js", to: "./js"},
-            { from: "./node_modules/jstree/dist/themes/default", to: "./css/jstree"},
             { from: "./node_modules/jquery-ui-bundle/jquery-ui.min.js", to: "./js"},
             { from: "./node_modules/lunr/lunr.min.js", to: "./js"},
             { from: "./src/productselector.html", to: "./" },

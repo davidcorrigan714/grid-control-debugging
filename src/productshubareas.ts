@@ -98,7 +98,6 @@ function loadProductsToAreas(node : Contracts.WorkItemClassificationNode, parent
 
 // Gets the currently configured area paths, and the area paths in the system
 async function LoadAreaPaths() {
-
     await getDoc("areaQueries").then(function (doc : docI) {
     areaQueries = doc.data;
     }).catch(function (err){
@@ -116,7 +115,7 @@ async function LoadAreaPaths() {
         projectAreas = retNodes[0];
     }, function (err){
         console.log("Failed to get area paths\n");
-        console.log("err");
+        console.log(err);
         // TODO, disable GUI?
         return;
     });
