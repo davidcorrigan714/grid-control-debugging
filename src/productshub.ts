@@ -5,7 +5,7 @@ import * as Menus from "VSS/Controls/Menus";
 import * as Grids from "VSS/Controls/Grids";
 import * as lunr from "lunr";
 import * as Navigation from "VSS/SDK/Services/Navigation";
-import {refreshAreaIndex, saveAreaProducts, areaUsingProduct} from "./productshubareas";
+import {saveAreaProducts} from "./productshubareas";
 
 export interface productInfoI {
   name: string;
@@ -208,8 +208,8 @@ export function getDoc(file : string) : Promise<docI>{
 
 var gridOptions : Grids.IGridOptions = {
   allowTextSelection: true,
-  height: "100%",
   width: "100%",
+  height: "80%",
   columns: [
     { text: "Name", width: 450, index: "name" },
     { text: "Source", width: 60,
@@ -309,7 +309,7 @@ function loadGridFromDB() : void{
     grid.collapseAll();
     productsLoaded = true;
     checkHashValue();
-    refreshAreaIndex();
+    //refreshAreaIndex();
   },
     function(err){
       if(err.status == 404){
@@ -772,7 +772,7 @@ async function saveAll()
 
     var fullTreeCollapsed : Array<PS.productTreeI> = []; // Removes Extraneous fields
     allProducts.forEach(function (product : productInfoI){
-      if((product.active === true || hasActiveChild(product)) && areaUsingProduct(product)){
+      if(product.active === true || hasActiveChild(product)){
         var toAdd : PS.productTreeI = { name: product.name, key: product.key};
         if(product.active === false ){
           toAdd.hidden = true;
@@ -839,8 +839,6 @@ $("#savingModal").on("shown.bs.modal", async function ()
 
 var menuItems : Array<Menus.IMenuItemSpec> = [
   { id: "save", text: "Save", noIcon: true },
-  { separator: true },
-  { id: "add-product-to-area", text: "Add Product to Area", noIcon: true, hidden: true },
   { separator: true, hidden: true },
   { id: "new-product", text: "New Product",  noIcon: true  },
   { separator: true },
@@ -867,9 +865,6 @@ var menubarOptions : Menus.MenuBarOptions = {
   executeAction: function (args) {
     var command = args.get_commandName();
     switch (command) {
-      case "add-product-to-area":
-        $("#newProductForArea").modal();
-        break;
       case "new-product":
         $("#manualModal").modal();
         break;
@@ -1077,9 +1072,8 @@ $("#titleBarProducts").on("click", function () {
   $("#titleBarProducts").attr('class', 'titleSelected');
   $("#titleBarAreasDiv").attr('class', 'titleUnselected');
   $("#titleBarAreas").attr('class', 'titleUnselected');
+  $("#areaQuery").attr('hidden','');
 
-  
-  menuItemVisible("add-product-to-area", false);
   menuItemVisible("new-product");
   menuItemVisible("new-version");
   menuItemVisible("import-pmdm-software");
@@ -1095,8 +1089,8 @@ $("#titleBarAreas").on("click", function () {
   $("#titleBarProducts").attr('class', 'titleUnselected');
   $("#titleBarAreasDiv").attr('class', 'titleSelected');
   $("#titleBarAreas").attr('class', 'titleSelected');
+  $("#areaQuery").removeAttr('hidden');
 
-  menuItemVisible("add-product-to-area");
   menuItemVisible("new-product",false);
   menuItemVisible("new-version",false);
   menuItemVisible("import-pmdm-software",false);

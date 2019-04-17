@@ -5,27 +5,34 @@ import * as WIT from "TFS/WorkItemTracking/RestClient";
 import * as Contracts from "TFS/WorkItemTracking/Contracts";
 import * as lunr from "lunr";
 //import * as PS from "ProductSelector";
-import {allProducts, getRootNode, getDoc, setDoc, docI, productInfoI} from "./productshub";
+import {getRootNode, getDoc, setDoc, docI} from "./productshub";
 
-export interface AreaProductsI {
+export interface AreaQueriesI {
     id: number;
-    products: string[];
+    query: string;
 }
 
-interface AreasAndProductsI{
-    products: string[];
+interface AreasAndQueriesI{
+    query: string;
     name: string;
     id: number;
-    children: AreasAndProductsI[];
+    children: AreasAndQueriesI[];
 }
 
-var areaProducts : AreaProductsI[] = [];
+var areaQueries : AreaQueriesI[] = [];
 var projectAreas : Contracts.WorkItemClassificationNode;
-var areasAndProducts : AreasAndProductsI[] = [];
-var selectedArea : AreaProductsI | undefined;
+var areasAndProducts : AreasAndQueriesI[] = [];
+var selectedArea : AreaQueriesI | undefined;
 
 var grid : Grids.Grid;
 var idx : lunr.Index;
+
+$("#queryText").on("input", function(){
+    if(selectedArea != undefined){
+        selectedArea.query = $(this).val();
+        grid.redraw();
+    }
+});
 
 $("#areaTree").on("click", function(){
     selectedArea = undefined;
@@ -37,21 +44,8 @@ $("#areaTree").on("click", function(){
     }
 
     selectedArea = grid.getRowData(selected[0]);
-});
-
-$("#newProductForAreaOk").on("click", function () {
-    if(selectedArea != undefined)
-    {
-        var productNode = getRootNode(parseInt($("#products").val()));
-        if(productNode)
-        {
-            if(productNode.active == true){
-                selectedArea.products.push(productNode.key);
-            }
-        }
-        grid.redraw();
-    }else{
-        alert("No area selected.");
+    if(selectedArea != undefined){
+        $("#queryText").val(selectedArea.query);
     }
 });
 
@@ -77,21 +71,21 @@ function refreshGridFromData() : void
 }
 
 // Walk the area tree and merge it with the associated products for the grid
-function loadProductsToAreas(node : Contracts.WorkItemClassificationNode, parent : AreasAndProductsI[]) : void{
+function loadProductsToAreas(node : Contracts.WorkItemClassificationNode, parent : AreasAndQueriesI[]) : void{
 
-    var newProduct : AreasAndProductsI = 
+    var newProduct : AreasAndQueriesI = 
     {
-        products: [],
+        query: '',
         name: node.name,
         id: node.id,
         children: []
     };
 
-    for ( var i in areaProducts)
+    for ( var i in areaQueries)
     {
-        if (areaProducts[i].id == node.id)
+        if (areaQueries[i].id == node.id)
         {
-            newProduct.products = areaProducts[i].products;
+            newProduct.query = areaQueries[i].query;
             break;
         }
     }
@@ -105,14 +99,14 @@ function loadProductsToAreas(node : Contracts.WorkItemClassificationNode, parent
 // Gets the currently configured area paths, and the area paths in the system
 async function LoadAreaPaths() {
 
-    await getDoc("areaProducts").then(function (doc : docI) {
-    areaProducts = doc.data;
+    await getDoc("areaQueries").then(function (doc : docI) {
+    areaQueries = doc.data;
     }).catch(function (err){
     if(err.status == 404){
-            areaProducts = [];
+            areaQueries = [];
         }else{
             // TODO: Hide the GUI? Alert?
-            console.log("Error loading area products " + JSON.stringify(err));
+            console.log("Error loading area queries " + JSON.stringify(err));
             return;
         }
     });
@@ -141,84 +135,16 @@ async function LoadAreaPaths() {
 
 var gridOptions : Grids.IGridOptions = {
     allowTextSelection: true,
-    height: "100%",
+    height: "80%",
     width: "100%",
     allowMultiSelect: false,
     columns: [
         { text: "Area", width: 300, index: "name" },
-        { text: "Valid Products", width: 6000, index: "products",
-            getCellContents: function (rowInfo, dataIndex, expandedState, level, column, indentIndex, columnOrder) : JQuery<HTMLElement> {
-                var node : AreasAndProductsI = grid.getRowData(rowInfo.dataIndex);
-                var out : JQuery<HTMLElement> = $("<div role='row' style='width:"+column.width+"px' class='grid-cell'></div>");
-                var first : boolean = true;
-                node.products.forEach(product => {
-                    for(var i in allProducts)
-                    {
-                        if(allProducts[i].key == product){
-                            // TODO put the div style into a CSS file
-                            if(!first){
-                                out.append(", ");
-                            }
-                            first = false;
-                            out.append(allProducts[i].name);
-                            out.append($(" <div style='display: inline; background-color: var(--component-label-default-color-hover); padding-left: 3px;padding-right: 3px;'><a href='#'>X</a></div>")
-                                .on("click", function () {removeProductFromArea(product, node.id);}));
-                            break;
-                        }
-                    }
-                });
-                return out;
-            }
-        }
+        { text: "Default Search Query", width: 400, index: "query" }
     ]
 };
 
-function findArea(areaId: number, currentArea : AreasAndProductsI[]) : AreasAndProductsI | undefined
-{
-    var area :AreasAndProductsI;
-    for( var i in currentArea)
-    {
-        area = currentArea[i];
-        if(area.id == areaId){
-            return area;
-        }
-        var inChildren = findArea(areaId, area.children);
-        if( inChildren != undefined){
-            return inChildren;
-        }
-    }
-    return undefined;
-}
-
-function removeProductFromArea(productKey : string, areaId : number) : void{
-    var area : AreaProductsI | undefined = findArea(areaId, areasAndProducts);
-    if(area != undefined){
-        area.products.splice(area.products.indexOf(productKey), 1);
-        grid.redraw();
-    }else{
-        console.error("Could not find area: " + areaId);
-    }
-}
-
 grid = Controls.create(Grids.Grid, $("#areaTree"), gridOptions);
-
-export function refreshAreaIndex(){
-    // Remove the stop word filter from the indexing process.
-    // Otherwise you can't search for 'CAN' devices.
-    // Looking at the lunr code and filtered words it doesn't seem to be necessary for our dataset of product names
-    // @ts-ignore Best way I could find to do this without touching the lunr source
-    lunr.stopWordFilter =  lunr.generateStopWordFilter([]);
-    lunr.Pipeline.registerFunction(lunr.stopWordFilter, 'stopWordFilter')
-
-    idx = lunr(function(builder) {
-        this.ref('gridKey');
-        this.field('name');
-        for (var i in allProducts) {
-          this.add(allProducts[i]);
-        }
-      });
-    $("#productAreaEditorModal").modal();
-}
 
 $("#searchQuery").on('input',function (){
   $("#products").empty();
@@ -252,32 +178,21 @@ $("#searchQuery").on('input',function (){
   }
 });
 
-function repopulateAreaProducts(node : AreasAndProductsI[]) : void
+function repopulateAreaQueries(node : AreasAndQueriesI[]) : void
 {
     for(var i in node){
-        if(node[i].products.length > 0){
-            areaProducts.push({id: node[i].id, products: node[i].products});
+        if(node[i].query.length > 0){
+            areaQueries.push({id: node[i].id, query: node[i].query});
         }
-        repopulateAreaProducts(node[i].children);
+        repopulateAreaQueries(node[i].children);
     }
-}
-
-// Generally should be used after a call to repopulateAreaProducts
-export function areaUsingProduct(product : productInfoI) : boolean {
-    for(var i in areaProducts)
-    {
-        if(areaProducts[i].products.indexOf(product.key) >= 0){
-            return true;
-        }
-    }
-    return false;
 }
 
 export function saveAreaProducts(){
     // TODO Only save if loaded properly
-    areaProducts = [];
-    repopulateAreaProducts(areasAndProducts);
-    setDoc("areaProducts",areaProducts, true); // TODO eTag stuff
+    areaQueries = [];
+    repopulateAreaQueries(areasAndProducts);
+    setDoc("areaQueries",areaQueries, true); // TODO eTag stuff
 }
 
 VSS.ready(LoadAreaPaths);

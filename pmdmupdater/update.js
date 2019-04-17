@@ -16,11 +16,11 @@ function errorEmail(){
 
 	transporter.sendMail(mailOptions, function(error, info){
 	  if (error) {
-		console.log(error);
-		process.exit();
+			console.log(error);
+			process.exit();
 	  } else {
-		console.log('Email sent: ' + info.response);
-		process.exit();
+			console.log('Email sent: ' + info.response);
+			process.exit();
 	  }
 	});
 }
@@ -62,11 +62,11 @@ try {
 
 	transporter.sendMail(mailOptions, function(error, info){
 	  if (error) {
-		console.log(error);
-		process.exit();
+			console.log(error);
+			process.exit();
 	  } else {
-		console.log('Email sent: ' + info.response);
-		process.exit();
+			console.log('Email sent: ' + info.response);
+			process.exit();
 	  }
 	});	
 }

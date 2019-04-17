@@ -1,7 +1,7 @@
 {
     "manifestVersion": 1.0,
     "id": "vsts-extensions-product-selector",
-    "version": "2.2.26.769",
+    "version": "2.2.26.802",
     "name": "Product Selector",
     "description": "A work item form control which allows selection of products.",
     "public": false,
@@ -62,8 +62,7 @@
         "vso.profile",
         "vso.project",
         "vso.graph",
-        "vso.identity",
-        "vso.code_full"
+        "vso.identity"
     ],
     "contributions": [
 		{

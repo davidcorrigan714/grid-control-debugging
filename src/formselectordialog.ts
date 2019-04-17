@@ -29,9 +29,9 @@ export function getDoc(file : string) : Promise<docI>{
     });
   }
 
-interface AreaProductsI {
+interface AreaQueriesI {
     id: number;
-    products: string[];
+    query: string;
 }
 
 ///////
@@ -40,7 +40,6 @@ var products : Array<PS.productTreeI> = [];
 var flatProducts : Array<PS.productTreeI> = [];
 var recentProducts : Array<PS.productEntryI> = [];
 var idx : lunr.Index;
-var validProducts: string[] = [];
 
 function getAreaId() : Promise<number>
 {
@@ -78,21 +77,24 @@ function resultsSort(a : lunr.Index.Result , b : lunr.Index.Result) : number
 function addAllProductsToSearchPage() : void {
     var toAdd:string = "";
     for(var x : number = 0;x<products.length;x++){
-        if(validProducts.indexOf(products[x].key) >= 0){
-            toAdd += "<option value=\"" + x + "\">" + products[x].name + "</option>";
-        }
+        toAdd += "<option value=\"" + x + "\">" + products[x].name + "</option>";
     }
     $("#products").append(toAdd);
 }
 
 $("#searchQuery").on('input',function (){
+    runSearch($(this).val());
+});
+
+function runSearch( query : string) : void 
+{
     $("#products").empty();
     $("#products2").empty();
 
-    if($(this).val() == ''){
+    if(query == ''){
         addAllProductsToSearchPage();
     }else{
-        var results : Array<lunr.Index.Result> = idx.search($(this).val());
+        var results : Array<lunr.Index.Result> = idx.search(query);
         results.sort(resultsSort);
 
         var length = results.length;
@@ -104,7 +106,7 @@ $("#searchQuery").on('input',function (){
 
         for(var i = 0;i<length;i++){
             var rootKey:string = flatProducts[results[i].ref].key.split(',')[0];
-            if(usedKeys.indexOf(rootKey) < 0 && validProducts.indexOf(rootKey) > 0){
+            if(usedKeys.indexOf(rootKey) < 0){
                 usedKeys.push(rootKey);
                 for(var x = 0;x<products.length;x++){
                     if(products[x].key == rootKey){
@@ -119,11 +121,15 @@ $("#searchQuery").on('input',function (){
             $("#products").val($("#products option:first").val()).change();
         }
     }
-});
+}
 
 $("#products").on('change', function(){
     $("#products2").empty();
     var product : PS.productTreeI = products[$("#products").val()];
+    if(product == undefined){
+        console.warn("Bad selection");
+        return;
+    }
     if(product.hidden !== true){
         $("#products2").append("<option value='" +
             JSON.stringify({name: product.name, key: product.key})
@@ -167,23 +173,24 @@ async function loadData(){
         return;
     });
 
-    await getDoc("areaProducts").then( function (areaProductsDoc : docI) {
-        var areaProductList : AreaProductsI[] = areaProductsDoc.data;
-        for(var i in areaProductList)
+    var defaultQuery : string = '';
+
+    await getDoc("areaQueries").then( function (areaQueriesDoc : docI) {
+        var areaQueryList : AreaQueriesI[] = areaQueriesDoc.data;
+        for(var i in areaQueryList)
         {
-            if(areaProductList[i].id == AreaId){
-                validProducts = areaProductList[i].products;
+            if(areaQueryList[i].id == AreaId){
+                defaultQuery = areaQueryList[i].query;
+                $("#searchQuery").val(defaultQuery);
                 break;
             }
         }
     }).catch( function (err){
-        console.log("Area products failed to load: ");
+        console.log("Area queries failed to load: ");
         console.log(err);
         // TODO, disable interaction & saving
         return;
     });
-
-    console.log(validProducts);
 
     var extensionCtx = VSS.getExtensionContext();
     var contributionId = extensionCtx.publisherId + "." + extensionCtx.extensionId + ".form-products-service";
@@ -195,17 +202,13 @@ async function loadData(){
             recentProducts = productDB.recentProducts;
 
             for(var i in recentProducts){
-                if(validProducts.indexOf(recentProducts[i].key.split(",")[0]))
-                {
-                    $('#recent-products').append("<option value=\"" + i + "\">" + recentProducts[i].name + "</option>");
-                }
+                $('#recent-products').append("<option value=\"" + i + "\">" + recentProducts[i].name + "</option>");
             }
-
-            addAllProductsToSearchPage();
 
             VSS.notifyLoadSucceeded();
 
             idx = lunr.Index.load(JSON.parse(productDB.productIdx));
+            runSearch(defaultQuery);
             });
         });
     });
