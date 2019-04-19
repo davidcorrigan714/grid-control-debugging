@@ -1,6 +1,0 @@
-# Ignore everything
-pmdmConnector/cert/*
-
-# Except the readme
-!pmdmConnector/cert/.gitignore
-!pmdmConnector/cert/readme.md

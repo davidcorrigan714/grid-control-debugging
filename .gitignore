@@ -5,3 +5,6 @@ extension-*.json
 settings.vset.json
 *.vsix
 typings
+
+pmdmConnector/cert/*
+!/pmdmConnector/cert/readme.md
