@@ -2,7 +2,7 @@ import { initializeIcons } from "office-ui-fabric-react/lib/Icons";
 import * as React from "react";
 import * as ReactDOM from "react-dom";
 import { getClient } from "TFS/WorkItemTracking/RestClient";
-import { WorkItemFormService } from "TFS/WorkItemTracking/Services";
+import { WorkItemFormService, IWorkItemFormService } from "TFS/WorkItemTracking/Services";
 import { MultiValueControl } from "./MultiValueControl";
 
 initializeIcons();
@@ -54,11 +54,28 @@ export class MultiValueEvents {
     private showProductSelector = (): Promise<void> => {
         var selectorForm;
 
+        var isChild : boolean = VSS.getConfiguration().witInputs.FieldIsChild;
+        var parentProductKeys : string[] = [];
+
+        if (isChild){
+            var parentField = VSS.getConfiguration().witInputs.ParentField;
+   
+            WorkItemFormService.getService().then(function (service : IWorkItemFormService){
+                service.getFieldValue(parentField).then( function (obj : string){
+                    var products : {name: string, key: string}[] = JSON.parse(obj);
+                    products.forEach(p => {parentProductKeys.push(p.key.split(',')[0])})
+                }, function (err){
+                    parentProductKeys = []
+                });
+            }, function (err) {
+                parentProductKeys = []
+            });
+        }
+
         var dialogOptions : IHostDialogOptions = {
             title: "Product Selection",
             width: 700,
             height: 480,
-            //urlReplacementObject: {key: '1234'},
             getDialogResult: function() {
                 // Get the result from selectorForm object
                 return selectorForm ? selectorForm.getFormData() : null;
@@ -97,7 +114,13 @@ export class MultiValueEvents {
 
         VSS.getService<IHostDialogService>(VSS.ServiceIds.Dialog).then((dialogService) => {
             dialogService.openDialog(contributionId,dialogOptions).then((dialog) => {
-                dialog.getContributionInstance("form-selector-dialog").then(function (selectorFormInstance) {
+                dialog.getContributionInstance("form-selector-dialog").then(function (selectorFormInstance ) {
+                    var onlyPublicProducts = VSS.getConfiguration().witInputs.OnlyPublic;
+                    if(isChild || VSS.getConfiguration().witInputs.OnlyPublic)
+                    {
+                        //@ts-ignore Might be a decent idea to properly type this call\
+                        selectorFormInstance.setChildProperties(isChild, parentProductKeys, onlyPublicProducts);
+                    }
                     dialog.updateOkButton(true);
                     selectorForm = selectorFormInstance;
                 });

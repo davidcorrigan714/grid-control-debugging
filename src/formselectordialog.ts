@@ -1,10 +1,10 @@
 /// <reference types="vss-web-extension-sdk" />
 import * as PS from "ProductSelector";
-import * as lunr from "lunr";
-import * as Menus from "VSS/Controls/Menus";
+import { Index } from "lunr";
+import { MenuBarOptions, MenuBar } from "VSS/Controls/Menus";
 import { CommandEventArgs } from "VSS/Events/Handlers";
 import { WorkItemFormService, IWorkItemFormService } from "TFS/WorkItemTracking/Services";
-import * as Controls from "VSS/Controls";
+import { create } from "VSS/Controls";
 //import { getDoc, docI } from "./productshub";
 //import {AreaProductsI } from "./productshubareas";
 
@@ -36,10 +36,13 @@ interface AreaQueriesI {
 
 ///////
 
-var products : Array<PS.productTreeI> = [];
-var flatProducts : Array<PS.productTreeI> = [];
-var recentProducts : Array<PS.productEntryI> = [];
-var idx : lunr.Index;
+var products : PS.productTreeI[] = [];
+var flatProducts : PS.productTreeI[] = [];
+var recentProducts : PS.productEntryI[] = [];
+var idx : Index;
+var parentProductKeys : string[] = [];
+var isChild : boolean = false;
+var onlyPublic : boolean = false;
 
 function getAreaId() : Promise<number>
 {
@@ -77,7 +80,15 @@ function resultsSort(a : lunr.Index.Result , b : lunr.Index.Result) : number
 function addAllProductsToSearchPage() : void {
     var toAdd:string = "";
     for(var x : number = 0;x<products.length;x++){
-        toAdd += "<option value=\"" + x + "\">" + products[x].name + "</option>";
+        if(isChild){
+            if(parentProductKeys.indexOf(products[x].key.split(',')[0]) >= 0)
+            {
+                toAdd += "<option value=\"" + x + "\">" + products[x].name + "</option>";
+            }
+        }else{
+            toAdd += "<option value=\"" + x + "\">" + products[x].name + "</option>";
+        }
+        
     }
     $("#products").append(toAdd);
 }
@@ -94,7 +105,7 @@ function runSearch( query : string) : void
     if(query == ''){
         addAllProductsToSearchPage();
     }else{
-        var results : Array<lunr.Index.Result> = idx.search(query);
+        var results : lunr.Index.Result[] = idx.search(query);
         results.sort(resultsSort);
 
         var length = results.length;
@@ -102,10 +113,17 @@ function runSearch( query : string) : void
             length = 100;
         }
 
-        var usedKeys :Array<string> = [];
+        var usedKeys :string[] = [];
 
         for(var i = 0;i<length;i++){
             var rootKey:string = flatProducts[results[i].ref].key.split(',')[0];
+            if(isChild && parentProductKeys.indexOf(rootKey) == -1){
+                continue;
+            }
+
+            if(onlyPublic && !isPublicProduct(rootKey))
+                continue;
+
             if(usedKeys.indexOf(rootKey) < 0){
                 usedKeys.push(rootKey);
                 for(var x = 0;x<products.length;x++){
@@ -146,7 +164,7 @@ $("#products").on('change', function(){
 });
 
 $("#products2").on('change',function (){
-    var selectedProducts : Array<PS.productTreeI> = [];
+    var selectedProducts : PS.productTreeI[] = [];
     for(var i in $("#products2").val()){
         selectedProducts.push(JSON.parse($("#products2").val()[i]) );
     }
@@ -154,12 +172,36 @@ $("#products2").on('change',function (){
 });
 
 $("#recent-products").on('change', function(){
-    var selectedProducts : Array<PS.productTreeI> = [];
+    var selectedProducts : PS.productTreeI[] = [];
     for(var i in $("#recent-products").val()){
         selectedProducts.push({name: recentProducts[$("#recent-products").val()[i]].name,key:recentProducts[$("#recent-products").val()[i]].key, children: []})
     }
     $("#selected-products").html(JSON.stringify(selectedProducts));
 });
+
+function isPublicProduct (product : string) : boolean
+{
+    if(product[0] == 'p')
+        return true;
+    return false;
+}
+
+function reloadRecentList()
+{
+    $('#recent-products').empty();
+    for(var i in recentProducts){
+         if(isChild){
+            if( parentProductKeys.indexOf(recentProducts[i].key.split(',')[0]) >= 0 ){
+                continue;
+            }
+        }
+
+        if(onlyPublic && !isPublicProduct(recentProducts[i].key))
+            continue;
+        
+        $('#recent-products').append("<option value=\"" + i + "\">" + recentProducts[i].name + "</option>");
+    }
+}
 
 // Called once the VSS extension API is ready
 async function loadData(){
@@ -201,20 +243,18 @@ async function loadData(){
             flatProducts = productDB.flatProducts;
             recentProducts = productDB.recentProducts;
 
-            for(var i in recentProducts){
-                $('#recent-products').append("<option value=\"" + i + "\">" + recentProducts[i].name + "</option>");
-            }
+            reloadRecentList();
 
             VSS.notifyLoadSucceeded();
 
-            idx = lunr.Index.load(JSON.parse(productDB.productIdx));
+            idx = Index.load(JSON.parse(productDB.productIdx));
             runSearch(defaultQuery);
             });
         });
     });
 }
 
-var menubarOptions : Menus.MenuBarOptions = {
+var menubarOptions : MenuBarOptions = {
     items: [
         { id: "recent", text: "Recent",  noIcon: true  },
         { separator: true },
@@ -241,10 +281,25 @@ var menubarOptions : Menus.MenuBarOptions = {
         }
     }
 };
-Controls.create(Menus.MenuBar, $("#menubar"), menubarOptions);
+// From Controls
+create(MenuBar, $("#menubar"), menubarOptions);
+
+function childPropertiesUpdated()
+{
+    if(isChild){
+        reloadRecentList();
+        runSearch($("#searchQuery").val());
+    }
+}
 
 var selectorDialog = (function(id) {
     return {
+        setChildProperties : function setChildProperties(isChild1 : boolean, parentProductKeys1, onlyPublicProducts : boolean){
+            isChild = isChild1;
+            parentProductKeys = parentProductKeys1;
+            onlyPublic = onlyPublicProducts;
+            childPropertiesUpdated();
+        },
         getFormData: function() {
             return $("#selected-products").html();
         }
