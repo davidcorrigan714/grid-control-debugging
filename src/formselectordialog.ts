@@ -1,44 +1,15 @@
 /// <reference types="vss-web-extension-sdk" />
-import * as PS from "ProductSelector";
+import { productTreeI, productEntryI, docI, AreaQueriesI, allProductsDocI } from "ProductSelector";
+import { getDoc } from "./utils";
 import { Index } from "lunr";
 import { MenuBarOptions, MenuBar } from "VSS/Controls/Menus";
 import { CommandEventArgs } from "VSS/Events/Handlers";
 import { WorkItemFormService, IWorkItemFormService } from "TFS/WorkItemTracking/Services";
 import { create } from "VSS/Controls";
-//import { getDoc, docI } from "./productshub";
-//import {AreaProductsI } from "./productshubareas";
 
-export interface docI {
-    id: string;
-    __etag: number;
-    data: any;
-  }
-
-// TODO, move this function to something like "utils"
-export function getDoc(file : string) : Promise<docI>{
-    return new Promise(function(resolve, reject)
-    {
-      VSS.getService(VSS.ServiceIds.ExtensionData).then(function(dataService : IExtensionDataService) {
-          // Get document by id
-          dataService.getDocument(VSS.getWebContext().project.id, file).then(function(file : docI) {
-            resolve(file);
-          }, function (err){
-            reject(err); // test for err.status == 404
-          });
-      });
-    });
-  }
-
-interface AreaQueriesI {
-    id: number;
-    query: string;
-}
-
-///////
-
-var products : PS.productTreeI[] = [];
-var flatProducts : PS.productTreeI[] = [];
-var recentProducts : PS.productEntryI[] = [];
+var products : productTreeI[] = [];
+var flatProducts : productTreeI[] = [];
+var recentProducts : productEntryI[] = [];
 var idx : Index;
 var parentProductKeys : string[] = [];
 var isChild : boolean = false;
@@ -143,7 +114,7 @@ function runSearch( query : string) : void
 
 $("#products").on('change', function(){
     $("#products2").empty();
-    var product : PS.productTreeI = products[$("#products").val()];
+    var product : productTreeI = products[$("#products").val()];
     if(product == undefined){
         console.warn("Bad selection");
         return;
@@ -155,7 +126,7 @@ $("#products").on('change', function(){
     }
     if(product.children !== undefined)
     {
-        product.children.forEach( function(c : PS.productEntryI){
+        product.children.forEach( function(c : productEntryI){
             $("#products2").append("<option value='" +
                 JSON.stringify({name: product.name + ": " + c.name, key: product.key + "," + c.key})
                 + "'>" + c.name + "</option>");
@@ -164,7 +135,7 @@ $("#products").on('change', function(){
 });
 
 $("#products2").on('change',function (){
-    var selectedProducts : PS.productTreeI[] = [];
+    var selectedProducts : productTreeI[] = [];
     for(var i in $("#products2").val()){
         selectedProducts.push(JSON.parse($("#products2").val()[i]) );
     }
@@ -172,7 +143,7 @@ $("#products2").on('change',function (){
 });
 
 $("#recent-products").on('change', function(){
-    var selectedProducts : PS.productTreeI[] = [];
+    var selectedProducts : productTreeI[] = [];
     for(var i in $("#recent-products").val()){
         selectedProducts.push({name: recentProducts[$("#recent-products").val()[i]].name,key:recentProducts[$("#recent-products").val()[i]].key, children: []})
     }
@@ -234,24 +205,32 @@ async function loadData(){
         return;
     });
 
-    var extensionCtx = VSS.getExtensionContext();
-    var contributionId = extensionCtx.publisherId + "." + extensionCtx.extensionId + ".form-products-service";
-    VSS.getServiceContribution(contributionId).then( function (contributionObj : IServiceContribution ){
-        contributionObj.getInstance().then(function (instanceObj : PS.productSelectorService){
-            instanceObj.getProductDB().then(function (productDB : PS.productDBI){
-            products = productDB.productTree;
-            flatProducts = productDB.flatProducts;
-            recentProducts = productDB.recentProducts;
+    getDoc("allproducts").then( function (rawData : docI) {
+        var data : allProductsDocI = rawData.data;
+        products = JSON.parse(data.products);
 
-            reloadRecentList();
-
-            VSS.notifyLoadSucceeded();
-
-            idx = Index.load(JSON.parse(productDB.productIdx));
-            runSearch(defaultQuery);
-            });
+        products.forEach(function (product : productTreeI){
+            flatProducts.push({name: product.name, key:product.key, children: []})
+            if(product.children){
+                product.children.forEach(function (child : productTreeI) {
+                    flatProducts.push({name: product.name + ": " + child.name, key:product.key + "," + child.key, children: []})
+                });
+            }
         });
+
+        idx = Index.load(JSON.parse(data.idx));
+
+        runSearch(defaultQuery);
+
+        VSS.notifyLoadSucceeded();
     });
+
+    getDoc("recent","User").then((recents) =>{
+        recentProducts = recents.data;
+        reloadRecentList();
+    }).catch( () => {
+        // Do nothing
+    })
 }
 
 var menubarOptions : MenuBarOptions = {

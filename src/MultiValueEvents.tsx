@@ -4,6 +4,8 @@ import * as ReactDOM from "react-dom";
 import { getClient } from "TFS/WorkItemTracking/RestClient";
 import { WorkItemFormService, IWorkItemFormService } from "TFS/WorkItemTracking/Services";
 import { MultiValueControl } from "./MultiValueControl";
+import { productEntryI, docI } from "ProductSelector";
+import { getDoc, setDoc } from "./utils";
 
 initializeIcons();
 const HELP_URL = "https://github.com/Microsoft/vsts-extension-multivalue-control#azure-devops-services";
@@ -51,6 +53,35 @@ export class MultiValueEvents {
         });
     }
 
+    private async updateRecentProducts (products : productEntryI[]) : Promise<void> 
+    {
+        getDoc("recent","User").then((recents : docI) =>{
+            var recentProducts : productEntryI[] = recents.data;
+
+            var found: boolean;
+            for( var i = products.length - 1; i >= 0; i--){
+                found = false;
+                for(var x in recentProducts)
+                {
+                    if(products[i].key == recentProducts[x].key)
+                    {
+                        found = true;
+                        recentProducts.splice(parseInt(x),1);
+                        recentProducts.unshift(products[i]);
+                        break;
+                    }
+                }
+                if(!found){
+                    recentProducts.unshift(products[i]);
+                }
+            }
+            recentProducts.splice(17);
+
+            setDoc("recent", recentProducts, true);
+
+        });
+    }
+
     private showProductSelector = (): Promise<void> => {
         var selectorForm;
 
@@ -81,7 +112,7 @@ export class MultiValueEvents {
                 return selectorForm ? selectorForm.getFormData() : null;
             },
             okCallback: (result) => {
-                var results = JSON.parse(result);
+                var results  : productEntryI[] = JSON.parse(result);
 
                 for(var x in results){
                     var found = false;
@@ -96,14 +127,7 @@ export class MultiValueEvents {
                     }
                 }
 
-                // TODO, move this to productservice.ts, maybe called from formselectordialog.html
-                var extensionCtx = VSS.getExtensionContext();
-                var contributionId = extensionCtx.publisherId + "." + extensionCtx.extensionId + ".form-products-service";
-                VSS.getServiceContribution(contributionId).then( function (contributionObj){
-                    contributionObj.getInstance().then(function (instanceObj: any){ // TODO Get type from other ts file (?)
-                        instanceObj.updateRecentProducts(results);
-                    });
-                });
+                this.updateRecentProducts(results);
 
                 this._setTags(this._tags);
             }
@@ -118,7 +142,7 @@ export class MultiValueEvents {
                     var onlyPublicProducts = VSS.getConfiguration().witInputs.OnlyPublic;
                     if(isChild || VSS.getConfiguration().witInputs.OnlyPublic)
                     {
-                        //@ts-ignore Might be a decent idea to properly type this call\
+                        //@ts-ignore Might be a decent idea to properly type this call
                         selectorFormInstance.setChildProperties(isChild, parentProductKeys, onlyPublicProducts);
                     }
                     dialog.updateOkButton(true);

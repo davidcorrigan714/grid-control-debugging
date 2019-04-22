@@ -1,11 +1,13 @@
 /// <reference types="vss-web-extension-sdk" />
-import * as PS from "ProductSelector";
-import * as Controls from "VSS/Controls";
-import * as Menus from "VSS/Controls/Menus";
-import * as Grids from "VSS/Controls/Grids";
+import { productTreeI } from "ProductSelector"; 
+import { create } from "VSS/Controls";
+import { MenuBar, Menu, MenuBarOptions, IMenuItemSpec} from "VSS/Controls/Menus";
+import { Grid, GridHierarchySource, IGridOptions} from "VSS/Controls/Grids";
 import * as lunr from "lunr";
-import * as Navigation from "VSS/SDK/Services/Navigation";
+import {HostNavigationService } from "VSS/SDK/Services/Navigation";
 import {saveAreaProducts} from "./productshubareas";
+import { getDoc, setDoc } from "./utils";
+import { docI } from "ProductSelector";
 
 export interface productInfoI {
   name: string;
@@ -14,15 +16,8 @@ export interface productInfoI {
   imported: boolean;
   active: boolean;
   firstAvailable: string;
-  children: Array<productInfoI>;
+  children: productInfoI[];
   gridKey: number;
-}
-
-// This really should be in the SDK somewhere but I couldn't find it
-export interface docI {
-  id: string;
-  __etag: number;
-  data: any;
 }
 
 interface pmdmProductI {
@@ -35,12 +30,12 @@ interface autocompleteI {
   value: string;
 }
 
-var localURL : string = 'https://azdo-dev.natinst.com/pmdmConnector';
-var pmdmSoftwareProducts : Array<pmdmProductI> = [];
-var pmdmHardwareProducts : Array<pmdmProductI> = [];
-export var allProducts : Array<productInfoI> = [];
-var grid : Grids.Grid;
-var menu : Menus.Menu<Menus.MenuBarOptions>;
+var localURL : string = 'https://azdo-admin.natinst.com/pmdmConnector';
+var pmdmSoftwareProducts : pmdmProductI[] = [];
+var pmdmHardwareProducts : pmdmProductI[] = [];
+export var allProducts : productInfoI[] = [];
+var grid : Grid;
+var menu : Menu<MenuBarOptions>;
 var doingPMDMUpdate : boolean = false; // Used to flag that the page was loaded with the URL hast option to do an automated PMDM update
 var productsLoaded : boolean = false; // Prevent saving if not loaded properly. This is mostly a failsafe for saves not triggered by the GUI, ie the PMDM update routine
 var products__etag : number = 0;
@@ -100,7 +95,7 @@ function sortProductsChildren(node1 : productInfoI, node2 : productInfoI) : numb
   }
 }
 
-function childrenContain(children : Array<productInfoI>, gridKey : number) : boolean{
+function childrenContain(children : productInfoI[], gridKey : number) : boolean{
   for(var i in children){
     if(children[i].gridKey == gridKey){
       return true;
@@ -124,7 +119,7 @@ export function getRootNode(gridKey : number) : productInfoI | null
   return null;
 }
 
-function getNode(gridKey : number, node : Array<productInfoI>) : productInfoI | null
+function getNode(gridKey : number, node : productInfoI[]) : productInfoI | null
 {
   for(var i in node)
   {
@@ -139,7 +134,7 @@ function getNode(gridKey : number, node : Array<productInfoI>) : productInfoI | 
   return null;
 }
 
-function deleteItems(gridKeysToDelete : Array<number>) : void{
+function deleteItems(gridKeysToDelete : number[]) : void{
   var searchLen = allProducts.length;
   for(var i = 0;i<searchLen;i++){
     var childSearchLen = allProducts[i].children.length;
@@ -176,7 +171,7 @@ function refreshGrid() : void
 {
   allProducts.sort(sortProducts);
   addGridKeys(allProducts,0);
-  grid.setDataSource(new Grids.GridHierarchySource(allProducts));
+  grid.setDataSource(new GridHierarchySource(allProducts));
 }
 
 // Unfortunately this doesn't catch if a user navigates within the settings pages
@@ -191,22 +186,7 @@ function clearDirty(){
   window.onbeforeunload = null;
 }
 
-// TODO, move this function to something like "utils"
-export function getDoc(file : string) : Promise<docI>{
-  return new Promise(function(resolve, reject)
-  {
-    VSS.getService(VSS.ServiceIds.ExtensionData).then(function(dataService : IExtensionDataService) {
-        // Get document by id
-        dataService.getDocument(VSS.getWebContext().project.id, file).then(function(file : docI) {
-          resolve(file);
-        }, function (err){
-          reject(err); // test for err.status == 404
-        });
-    });
-  });
-}
-
-var gridOptions : Grids.IGridOptions = {
+var gridOptions : IGridOptions = {
   allowTextSelection: true,
   width: "100%",
   height: "80%",
@@ -393,7 +373,7 @@ function HardwareProductFromPMDM(productId : string) : void {
 $.ajax({url: localURL+"/pmdmsoftwareproducts", success: function(result){
   pmdmSoftwareProducts = JSON.parse(result);
   pmdmSoftwareProducts.sort();
-  var tagValues : Array<autocompleteI> = [];
+  var tagValues : autocompleteI[] = [];
   for(var product in pmdmSoftwareProducts){
     tagValues.push({label:pmdmSoftwareProducts[product].name, value:pmdmSoftwareProducts[product].productId})
   }
@@ -417,7 +397,7 @@ $.ajax({url: localURL+"/pmdmsoftwareproducts", success: function(result){
 $.ajax({url: localURL+"/pmdmhardwareproducts", success: function(result){
   pmdmHardwareProducts = JSON.parse(result);
   pmdmHardwareProducts.sort();
-  var tagValues : Array<autocompleteI> = [];
+  var tagValues : autocompleteI[] = [];
   for(var product in pmdmHardwareProducts){
     tagValues.push({label:pmdmHardwareProducts[product].name, value:pmdmHardwareProducts[product].productId})
   }
@@ -603,36 +583,6 @@ function sanitizeKey(key : string) : string{
   return key.toLowerCase().replace(/,/g,"").replace(/;/g,"").replace(/ /g,"").replace(/&/g,"");
 }
 
-export function setDoc(file : string, contents : any, forceSet? : boolean, etag? : number) : Promise<docI> { 
-  return new Promise((resolve, reject) => {
-    forceSet = forceSet || false;
-    etag = etag || 0;
-    if(forceSet){ // Bypasses the consistency check of the tag
-      etag = -1
-    }
-    var myDoc = {
-      id: file,
-      data: contents,
-      __etag: etag
-    };
-
-    VSS.getService(VSS.ServiceIds.ExtensionData).then(function(dataService : IExtensionDataService) {
-      dataService.setDocument(VSS.getWebContext().project.id, myDoc).then(function(doc : docI) {
-        resolve(doc);
-      }, function (err){
-        console.log("Error setting document "+file+" on remote serner.");
-        alert("Error setting document "+file+" on remote serner.");
-        reject();
-      });
-    }, function (err){
-        console.log("Error getting service.");
-        alert("Error getting service.");
-        reject();
-      }
-    );
-  });
-}
-
 function mergeActiveFlags(product : productInfoI) : void
 {
   for(var i in allProducts){
@@ -657,7 +607,7 @@ $("#pmdmUpdateModal").on("shown.bs.modal",
 async function () {
   flagDirty();
 
-  var productsToUpdate : Array<string> = [];
+  var productsToUpdate : string[] = [];
   var indices = grid.getSelectedDataIndices();
 
   if(indices.length == 0){
@@ -769,10 +719,10 @@ async function saveAll()
 
     // Generate the condensed objects for the search indexer and selector form 
 
-    var fullTreeCollapsed : Array<PS.productTreeI> = []; // Removes Extraneous fields
+    var fullTreeCollapsed : productTreeI[] = []; // Removes Extraneous fields
     allProducts.forEach(function (product : productInfoI){
       if(product.active === true || hasActiveChild(product)){
-        var toAdd : PS.productTreeI = { name: product.name, key: product.key};
+        var toAdd : productTreeI = { name: product.name, key: product.key};
         if(product.active === false ){
           toAdd.hidden = true;
         }
@@ -790,8 +740,8 @@ async function saveAll()
       }
     });
 
-    var flatProducts : Array<{name: string, i:string}> = [];
-    fullTreeCollapsed.forEach(function (t : PS.productTreeI){
+    var flatProducts : {name: string, i:string}[] = [];
+    fullTreeCollapsed.forEach(function (t : productTreeI){
       flatProducts.push({name: t.name, i: ''})
       if(t.children !== undefined){
         t.children.forEach(function (c){
@@ -816,7 +766,7 @@ async function saveAll()
       }
     });
 
-    await setDoc("allproducts",{idx: JSON.stringify(idx), products: fullTreeCollapsed}, true);
+    await setDoc("allproducts",{idx: JSON.stringify(idx), products: JSON.stringify(fullTreeCollapsed)}, true);
 
     clearDirty();
     $("#savingModal").modal('hide');
@@ -836,7 +786,7 @@ $("#savingModal").on("shown.bs.modal", async function ()
   saveAll();
 });
 
-var menuItems : Array<Menus.IMenuItemSpec> = [
+var menuItems : IMenuItemSpec[] = [
   { id: "save", text: "Save", noIcon: true },
   { separator: true, hidden: true },
   { id: "new-product", text: "New Product",  noIcon: true  },
@@ -859,7 +809,7 @@ var menuItems : Array<Menus.IMenuItemSpec> = [
 ];
 
 
-var menubarOptions : Menus.MenuBarOptions = {
+var menubarOptions : MenuBarOptions = {
   items: menuItems,
   executeAction: function (args) {
     var command = args.get_commandName();
@@ -885,7 +835,7 @@ var menubarOptions : Menus.MenuBarOptions = {
         break;
 */        
       case "delete-items":
-        var gridKeysToDelete : Array<number> = [];
+        var gridKeysToDelete : number[] = [];
         var indices = grid.getSelectedDataIndices();
 
         if(indices.length == 0){
@@ -916,7 +866,7 @@ var menubarOptions : Menus.MenuBarOptions = {
   }
 };
 
-menu = Controls.create(Menus.MenuBar, $("#menubar"), menubarOptions);
+menu = create(MenuBar, $("#menubar"), menubarOptions);
 
 function setMenuItemDisabled(id: string, value: boolean) : void
 {
@@ -1007,7 +957,7 @@ async function checkUserAccess()
       return;
     })
 
-    var groups : Array<groupI> = []; // Should make a type for this
+    var groups : groupI[] = []; // Should make a type for this
     await restCall(token, "https://vssps.dev.azure.com/"+org+"/_apis/graph/groups?api-version=5.0-preview.1")
     .then(function (data : restGroupsI) {
       groups = data.value;
@@ -1052,7 +1002,7 @@ async function checkUserAccess()
 
 function checkHashValue() : void
 {
-  VSS.getService(VSS.ServiceIds.Navigation).then(function (navigationService : Navigation.HostNavigationService) {
+  VSS.getService(VSS.ServiceIds.Navigation).then(function (navigationService : HostNavigationService) {
     navigationService.getHash().then(function (hash) {
       if(hash == 'doPMDMUpdate'){
         doingPMDMUpdate = true;
@@ -1098,7 +1048,7 @@ $("#titleBarAreas").on("click", function () {
   menuItemVisible("delete-items",false);
 });
 
-grid = Controls.create(Grids.Grid, $("#productTree"), gridOptions);
+grid = create(Grid, $("#productTree"), gridOptions);
 loadGridFromDB();
 VSS.ready(checkUserAccess);
 

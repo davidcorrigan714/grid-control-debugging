@@ -1,31 +1,37 @@
 declare module "ProductSelector" {
-    interface productTreeI {
+    export interface productTreeI {
         name: string;
         key: string;
         hidden?: boolean;
         children?: Array<productTreeI>;
     }
 
-    interface productEntryI {
+    export interface productEntryI {
         name: string;
         key: string;
     }
     
-    interface allProductsDocI {
+    export interface allProductsDocI {
         idx: string;
-        products: [productTreeI];
+        products: string;
     }
 
-    interface productDBI
+    export interface productDBI
     {
         productTree: Array<productTreeI>;
         flatProducts: Array<productTreeI>;
         recentProducts: Array<productTreeI>;
         productIdx : string;
     }
+    
+    export interface docI {
+        id: string;
+        __etag: number;
+        data: any;
+    }
 
-    class productSelectorService {
-        getProductDB() : Promise<productDBI>;
+    export interface AreaQueriesI {
+        id: number;
+        query: string;
     }
 }
-

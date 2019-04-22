@@ -5,7 +5,9 @@ import * as WIT from "TFS/WorkItemTracking/RestClient";
 import * as Contracts from "TFS/WorkItemTracking/Contracts";
 import * as lunr from "lunr";
 //import * as PS from "ProductSelector";
-import {getRootNode, getDoc, setDoc, docI} from "./productshub";
+import {getRootNode } from "./productshub";
+import { getDoc, setDoc } from "./utils";
+import { docI } from "ProductSelector";
 
 export interface AreaQueriesI {
     id: number;

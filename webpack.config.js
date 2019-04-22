@@ -7,7 +7,6 @@ module.exports = {
     target: "web",
     entry: {
         multivalue: "./src/multivalue.ts",
-        productsservice: "./src/productsservice.ts",
         formselectordialog: "./src/formselectordialog.ts",
         productshub: "./src/productshub.ts",
         productshubareas: "./src/productshubareas.ts"
