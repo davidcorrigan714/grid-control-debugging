@@ -11,7 +11,13 @@ var products : productTreeI[] = [];
 var flatProducts : productTreeI[] = [];
 var recentProducts : productEntryI[] = [];
 var idx : Index;
-var parentProductKeys : string[] = [];
+
+// List of individual products
+var parentProductsKeys : {name: string, key: string}[] = []; // TODO Consolidate this type with MultiValueEvents.ts so they reference the exact same thing
+
+// Just the root keys
+var parentProductKeys : string[] = []; // TODO Consolidate this type with MultiValueEvents.ts so they reference the exact same thing
+
 var isChild : boolean = false;
 var onlyPublic : boolean = false;
 
@@ -52,7 +58,7 @@ function addAllProductsToSearchPage() : void {
     var toAdd:string = "";
     for(var x : number = 0;x<products.length;x++){
         if(isChild){
-            if(parentProductKeys.indexOf(products[x].key.split(',')[0]) >= 0)
+            if( parentProductKeys.indexOf(products[x].key) >= 0)
             {
                 toAdd += "<option value=\"" + x + "\">" + products[x].name + "</option>";
             }
@@ -115,24 +121,36 @@ function runSearch( query : string) : void
 $("#products").on('change', function(){
     $("#products2").empty();
     var product : productTreeI = products[$("#products").val()];
+
     if(product == undefined){
         console.warn("Bad selection");
         return;
     }
+
     if(product.hidden !== true){
         $("#products2").append("<option value='" +
             JSON.stringify({name: product.name, key: product.key})
             + "'>" + product.name + "</option>");
     }
+
     if(product.children !== undefined)
     {
-        product.children.forEach( function(c : productEntryI){
+        product.children.forEach( function(child : productEntryI){
             $("#products2").append("<option value='" +
-                JSON.stringify({name: product.name + ": " + c.name, key: product.key + "," + c.key})
-                + "'>" + c.name + "</option>");
+                JSON.stringify({name: product.name + ": " + child.name, key: product.key + "," + child.key})
+                + "'>" + child.name + "</option>");
         });
     }
 });
+
+function findKeyInProductList(key : string, list : productTreeI[]) :number {
+    for(var i in list){
+        if(list[i].key == key){
+            return parseInt(i);
+        }
+    }
+    return -1;
+}
 
 $("#products2").on('change',function (){
     var selectedProducts : productTreeI[] = [];
@@ -140,7 +158,95 @@ $("#products2").on('change',function (){
         selectedProducts.push(JSON.parse($("#products2").val()[i]) );
     }
     $("#selected-products").html(JSON.stringify(selectedProducts));
+    
+    checkParentCompletion();
 });
+
+function checkParentCompletion()
+{
+    var additionalProducts : productTreeI[] = [];
+    $("#additional-products").html("[]");
+
+    var selectedProducts : productTreeI[] = JSON.parse($("#selected-products").html());
+
+    // Check for any gaps in the selection between the parent & child's selected versions
+    // This feels long winded and overly complicated but I'm not seeing a simpler algorithm for it
+    // It looks at the master list of product version for the product vs what we have selected for this product
+    // Then trim the unselected ones from the top and bottom of the list.
+    // Then remove all the selected ones and see if any unselected products remain.
+    if(isChild && selectedProducts.length > 0){
+        var productIndex : number = findKeyInProductList(selectedProducts[0].key.split(",")[0],products);
+        var children : productTreeI[] = products[productIndex].children || [];
+        var parentKey : string = products[productIndex].key;
+        var parentName : string = products[productIndex].name;
+        children = children.slice(0);
+
+        var firstSelected : number = -1;
+        for(var i in children){
+            var key :string = parentKey+","+children[i].key;
+            if(findKeyInProductList(key, selectedProducts) >= 0 || findKeyInProductList(key, parentProductsKeys) >= 0)
+            {
+                firstSelected = parseInt(i);
+                break;
+            }
+        }
+        if(firstSelected == -1){
+            console.warn("Couldn't find first selected.");
+            return;
+        }
+
+        children.splice(0,firstSelected+1);
+
+        var lastSelected : number = -1;
+        for(var x = children.length - 1; x >= 0; x--){
+            var key :string = parentKey+","+children[x].key;
+            if(findKeyInProductList(key, selectedProducts) >= 0 || findKeyInProductList(key, parentProductsKeys) >= 0)
+            {
+                lastSelected = x;
+                break;
+            }
+        }
+        if(lastSelected == -1){
+            console.warn("Couldn't find last selected.");
+            return;
+        }
+
+        children.splice(lastSelected);
+
+        for(var i in children){
+            var key :string = parentKey+","+children[i].key;
+            if(findKeyInProductList(key, selectedProducts) == -1 && findKeyInProductList(key, parentProductsKeys) == -1)
+            {
+                additionalProducts.push(children[i]);
+            }
+        }
+
+        var additionalProducts2 : {name: string, key:string}[] = [];
+        additionalProducts.forEach( product => { additionalProducts2.push({name: parentName + ": " + product.name, key:  parentKey+","+product.key}); });
+        $("#additional-products").html(JSON.stringify(additionalProducts2))
+
+        // We figure out the full list here to preserve the sort order
+        var allProducts : {name: string, key:string}[] = [];
+        var currentProductVersions : {name: string, key:string}[] = products[productIndex].children || [];
+        console.log(JSON.stringify(currentProductVersions));
+        console.log(JSON.stringify(additionalProducts2));
+        console.log(JSON.stringify(parentProductKeys));
+        currentProductVersions.forEach(product =>{
+            if(findKeyInProductList( parentKey + "," + product.key ,additionalProducts2) != -1 ||
+                findKeyInProductList(parentKey + "," + product.key, parentProductsKeys) != -1  )
+                allProducts.push({
+                    name : parentName + ": " + product.name,
+                    key : parentKey+","+product.key
+                });
+        });
+
+        console.log(allProducts);
+
+        allProducts = allProducts.concat(parentProductsKeys.filter(product => product.key.indexOf(parentKey) == -1));
+        
+        $("#additional-products-completed").html(JSON.stringify(allProducts));
+    }
+}
 
 $("#recent-products").on('change', function(){
     var selectedProducts : productTreeI[] = [];
@@ -148,6 +254,7 @@ $("#recent-products").on('change', function(){
         selectedProducts.push({name: recentProducts[$("#recent-products").val()[i]].name,key:recentProducts[$("#recent-products").val()[i]].key, children: []})
     }
     $("#selected-products").html(JSON.stringify(selectedProducts));
+    checkParentCompletion();
 });
 
 function isPublicProduct (product : string) : boolean
@@ -162,7 +269,7 @@ function reloadRecentList()
     $('#recent-products').empty();
     for(var i in recentProducts){
          if(isChild){
-            if( parentProductKeys.indexOf(recentProducts[i].key.split(',')[0]) >= 0 ){
+            if( parentProductKeys.indexOf(recentProducts[i].key.split(',')[0]) == -1 ){
                 continue;
             }
         }
@@ -275,12 +382,21 @@ var selectorDialog = (function(id) {
     return {
         setChildProperties : function setChildProperties(isChild1 : boolean, parentProductKeys1, onlyPublicProducts : boolean){
             isChild = isChild1;
-            parentProductKeys = parentProductKeys1;
+            parentProductsKeys = parentProductKeys1;
+
+            parentProductKeys1.forEach( product => {
+                if( parentProductKeys.indexOf(product.key.split(",")[0]) == -1){
+                    parentProductKeys.push(product.key.split(",")[0]);
+                }
+            });
+
             onlyPublic = onlyPublicProducts;
             childPropertiesUpdated();
         },
         getFormData: function() {
-            return $("#selected-products").html();
+            return {selected: JSON.parse($("#selected-products").html()),
+                    additional:  JSON.parse($("#additional-products").html()),
+                    additionalComplete: JSON.parse($("#additional-products-completed").html())};
         }
     };
 })();

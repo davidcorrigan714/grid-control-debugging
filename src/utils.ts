@@ -5,7 +5,7 @@ export function getDoc(file : string, scopeType? : string) : Promise<docI>{
     var scope : string = "Default";
     if (scopeType != undefined){
         scope = scopeType;
-}
+    }
     return new Promise(function(resolve, reject)
     {
         VSS.getService(VSS.ServiceIds.ExtensionData).then(function(dataService : IExtensionDataService) {
@@ -19,7 +19,12 @@ export function getDoc(file : string, scopeType? : string) : Promise<docI>{
     });
 }
 
-export function setDoc(file : string, contents : any, forceSet? : boolean, etag? : number) : Promise<docI> { 
+export function setDoc(file : string, contents : any, forceSet? : boolean, etag? : number, scopeType?: string) : Promise<docI> { 
+    var scope : string = "Default";
+    if (scopeType != undefined){
+        scope = scopeType;
+    }
+
     return new Promise((resolve, reject) => {
       forceSet = forceSet || false;
       etag = etag || 0;
@@ -33,7 +38,7 @@ export function setDoc(file : string, contents : any, forceSet? : boolean, etag?
       };
   
       VSS.getService(VSS.ServiceIds.ExtensionData).then(function(dataService : IExtensionDataService) {
-        dataService.setDocument(VSS.getWebContext().project.id, myDoc).then(function(doc : docI) {
+        dataService.setDocument(VSS.getWebContext().project.id, myDoc,{scopeType: scope}).then(function(doc : docI) {
           resolve(doc);
         }, function (err){
           console.log("Error setting document "+file+" on remote serner.");

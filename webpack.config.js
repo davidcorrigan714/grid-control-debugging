@@ -9,7 +9,8 @@ module.exports = {
         multivalue: "./src/multivalue.ts",
         formselectordialog: "./src/formselectordialog.ts",
         productshub: "./src/productshub.ts",
-        productshubareas: "./src/productshubareas.ts"
+        productshubareas: "./src/productshubareas.ts",
+        continuationdialog: "./src/continuationdialog.ts"
     },
     output: {
         filename: "src/[name].js",
@@ -57,6 +58,7 @@ module.exports = {
             { from: "./src/formselectordialog.html", to: "./" },
             { from: "./src/productshub.html", to: "./" },
             { from: "./src/productsservice.html", to: "./"},
+            { from: "./src/continueproductsdialog.html", to: "./"},
             { from: "./src/products.css", to: "./css"}
         ])
     ]

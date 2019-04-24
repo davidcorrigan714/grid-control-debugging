@@ -29,8 +29,8 @@ const provider = () => {
             ensureControl();
         },
         onFieldChanged: (args: WitExtensionContracts.IWorkItemFieldChangedArgs) => {
-            if (control && args.changedFields[control.fieldName] !== undefined &&
-                args.changedFields[control.fieldName] !== null
+            if (control && args.changedFields[control.fieldDataName] !== undefined &&
+                args.changedFields[control.fieldDataName] !== null
             ) {
                 control.refresh();
             }

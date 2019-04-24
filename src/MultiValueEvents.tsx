@@ -18,6 +18,7 @@ export class MultiValueEvents {
     /** Counter to avoid consuming own changed field events. */
     private _fired: number = 0;
     private _tags: {name: string, key: string}[] = [];
+    private parentFieldId : string = '';
 
     public async refresh(tags?: {name: string, key: string}[]): Promise<void> {
         let error = <></>;
@@ -76,9 +77,7 @@ export class MultiValueEvents {
                 }
             }
             recentProducts.splice(17);
-
-            setDoc("recent", recentProducts, true);
-
+            setDoc("recent", recentProducts, true, -1, "User");
         });
     }
 
@@ -86,15 +85,16 @@ export class MultiValueEvents {
         var selectorForm;
 
         var isChild : boolean = VSS.getConfiguration().witInputs.FieldIsChild;
-        var parentProductKeys : string[] = [];
+        var parentProductKeys : {name: string, key: string}[] = [];
 
         if (isChild){
             var parentField = VSS.getConfiguration().witInputs.ParentField;
+            this.parentFieldId = parentField;
    
-            WorkItemFormService.getService().then(function (service : IWorkItemFormService){
-                service.getFieldValue(parentField).then( function (obj : string){
-                    var products : {name: string, key: string}[] = JSON.parse(obj);
-                    products.forEach(p => {parentProductKeys.push(p.key.split(',')[0])})
+            WorkItemFormService.getService().then((service : IWorkItemFormService) => {
+                service.getFieldValue(parentField).then( (obj : string) => {
+                    obj = this.decodeHTMLEntities(obj);
+                    parentProductKeys = JSON.parse(obj);
                 }, function (err){
                     parentProductKeys = []
                 });
@@ -112,24 +112,30 @@ export class MultiValueEvents {
                 return selectorForm ? selectorForm.getFormData() : null;
             },
             okCallback: (result) => {
-                var results  : productEntryI[] = JSON.parse(result);
+                // TODO abstract this type
+                var results : {selected: productEntryI[], additional: productEntryI[], additionalComplete: productEntryI[]}
+                     = {selected: result.selected, additional: result.additional, additionalComplete: result.additionalComplete};
 
-                for(var x in results){
+                for(var x in results.selected){
                     var found = false;
                     for(var i = 0; i < this._tags.length; i++) {
-                        if (this._tags[i].key == results[x].key) {
+                        if (this._tags[i].key == results.selected[x].key) {
                             found = true;
                             break;
                         }
                     }
                     if (!found){
-                        this._tags.push({key: results[x].key, name: results[x].name});
+                        this._tags.push({key: results.selected[x].key, name: results.selected[x].name});
                     }
                 }
 
-                this.updateRecentProducts(results);
-
+                this.updateRecentProducts(results.selected);
                 this._setTags(this._tags);
+
+                if(results.additional.length > 0)
+                {
+                    this.doContinuationDialog(results.additional, results.additionalComplete);
+                }
             }
         };
 
@@ -154,6 +160,40 @@ export class MultiValueEvents {
         return new Promise<void>((resolve) => {
             this._onRefreshed = resolve;
         });
+    }
+
+    private  doContinuationDialog  = async ( additionalProducts: productEntryI[], additionalProductsComplete: productEntryI[]):  Promise<void> => {
+        var dialogOptions : IHostDialogOptions = {
+            title: "Additional Products",
+            width: 400,
+            height: 300,
+            getDialogResult: function() {
+                // Get the result from selectorForm object
+            },
+            okCallback: (result) => {
+                var names : string[] = [];
+                additionalProductsComplete.forEach( product => {names.push(product.name);});
+                WorkItemFormService.getService().then((service : IWorkItemFormService) => {
+                    service.setFieldValue(this.parentFieldId, JSON.stringify(additionalProductsComplete));
+                });
+            }
+        };
+
+        var extensionCtx = VSS.getExtensionContext();
+        var contributionId = extensionCtx.publisherId + "." + extensionCtx.extensionId + ".continue-products-dialog";
+        var productNames : string[] = [];
+        additionalProducts.forEach(product => {productNames.push(product.name);});
+
+        VSS.getService<IHostDialogService>(VSS.ServiceIds.Dialog).then((dialogService) => {
+            dialogService.openDialog(contributionId,dialogOptions).then((dialog) => {
+                dialog.getContributionInstance("continue-products-dialog").then(function (selectorFormInstance ) {
+                    // @ts-ignore Should probably type the form instance at some point
+                    selectorFormInstance.setChildProperties(VSS.getConfiguration().witInputs.ParentFieldTitle,productNames.join(", "));
+                    dialog.updateOkButton(true);
+                });
+            });
+        });
+
     }
 
     private _resize = () => {
