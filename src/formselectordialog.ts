@@ -228,9 +228,6 @@ function checkParentCompletion()
         // We figure out the full list here to preserve the sort order
         var allProducts : {name: string, key:string}[] = [];
         var currentProductVersions : {name: string, key:string}[] = products[productIndex].children || [];
-        console.log(JSON.stringify(currentProductVersions));
-        console.log(JSON.stringify(additionalProducts2));
-        console.log(JSON.stringify(parentProductKeys));
         currentProductVersions.forEach(product =>{
             if(findKeyInProductList( parentKey + "," + product.key ,additionalProducts2) != -1 ||
                 findKeyInProductList(parentKey + "," + product.key, parentProductsKeys) != -1  )
@@ -239,8 +236,6 @@ function checkParentCompletion()
                     key : parentKey+","+product.key
                 });
         });
-
-        console.log(allProducts);
 
         allProducts = allProducts.concat(parentProductsKeys.filter(product => product.key.indexOf(parentKey) == -1));
         
