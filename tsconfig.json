@@ -8,17 +8,9 @@
         "noUnusedLocals": true,
         "jsx": "react",
         "types": [
-            "knockout",
-            "requirejs",
-            "jquery",
-            "react",
-            "react-dom",
-            "vss-web-extension-sdk",
-            "lunr",
-            "bootstrap"
+            "vss-web-extension-sdk"
         ],
         "lib": [
-            "es2015.promise",
             "dom",
             "es5"
         ]

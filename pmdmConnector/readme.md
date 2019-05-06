@@ -1,1 +1,0 @@
-This is a flask app that facilitiates communication between the client side js code and PMDM.

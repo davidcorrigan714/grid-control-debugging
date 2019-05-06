@@ -1,3 +1,0 @@
-The update.js script uses Google's puppeteer library to load the products configuration page and update all pmdm products in the grid.
-
-User buildDocker.sh to build the pmdmupdater docker file. Use the runPMDMUpdate.sh to launch the docker, modifying the user name and password as needed. I recommend copying the runPMDMUpdate script to a different directory and then you can fetch the latest from git and rebuild the docker without affecting your config.

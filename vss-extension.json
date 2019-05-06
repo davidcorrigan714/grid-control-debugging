@@ -1,14 +1,11 @@
 {
     "manifestVersion": 1.0,
-    "id": "vsts-extensions-product-selector",
-    "version": "2.2.26.888",
-    "name": "Product Selector",
-    "description": "A work item form control which allows selection of products.",
+    "id": "vsts-extensions-grid-debug",
+    "version": "0.0.0.67",
+    "name": "Grid Debugging",
+    "description": "Figuring out why the grid control isn't working.",
     "public": false,
     "publisher": "davidcorrigan2",
-    "icons": {
-        "default": "img/logo.png"
-    },
     "categories": [
         "Azure Boards"
     ],
@@ -23,34 +20,13 @@
             "addressable": true
         },
         {
-        "path": "img",
-        "addressable": true
-        },
-        {
             "path": "node_modules/vss-web-extension-sdk/lib",
             "addressable": true,
             "packagePath": "lib"
         }
     ],
-    "repository": {
-        "type": "git",
-        "uri": "https://ni.visualstudio.com/DefaultCollection/Users/_git/dcorriga-product-version-selector"
-    },
-    "links": {
-        "repository": {
-            "uri": "https://ni.visualstudio.com/DefaultCollection/Users/_git/dcorriga-product-version-selector"
-        },
-        "issues": {
-            "uri": "https://ni.visualstudio.com/DefaultCollection/Users/_git/dcorriga-product-version-selector"
-        }
-    },
     "tags": [
-        "Work Items",
-        "Extensions",
-        "Work Item Control",
-        "Multivalue Control",
-        "Products",
-        "NI"
+        "Work Items"
     ],
     "content": {
         "details": {
@@ -58,88 +34,8 @@
         }
     },
     "scopes": [
-        "vso.work",
-        "vso.profile",
-        "vso.project",
-        "vso.graph",
-        "vso.identity"
     ],
     "contributions": [
-		{
-            "id": "form-selector-control",
-            "type": "ms.vss-work-web.work-item-form-control",
-            "description": "A work item form control which allows selection of an NI Product.",
-            "targets": [
-                "ms.vss-work-web.work-item-form"
-            ],
-            "properties": {
-                "name": "Product Selector Control",
-                "uri": "dist/productselector.html",
-                "height": 50,
-				"inputs": [
-				    {
-                        "id":"FieldName",
-                        "name": "Select the user field for this control. Must be 'Text (multiple lines)' ie 'HTML'",
-                        "type": "WorkItemField",
-                        "properties": {
-                            "workItemFieldTypes": ["HTML"]
-                        },
-                        "validation": {
-                            "dataType": "String",
-                            "isRequired": true
-                        }
-                    },
-                    {
-                        "id":"FieldNameKey",
-                        "name": "Select the data field for this control. Must be 'Text (multiple lines)' ie 'HTML'. This is not visible by the user and stores the backend data key references.",
-                        "type": "WorkItemField",
-                        "properties": {
-                            "workItemFieldTypes": ["HTML"]
-                        },
-                        "validation": {
-                            "dataType": "String",
-                            "isRequired": true
-                        }
-                    },
-                    {
-                        "id":"FieldIsChild",
-                        "name":"Field is a child of another field, ie this field only uses products selected in the parent field",
-                        "inputMode": "CheckBox",
-                        "validation": {
-                            "dataType": "Boolean"
-                        }
-                    },
-                    {
-                        "id":"ParentField",
-                        "name":"Parent Field (JSON version) - Pick any field if not needed (AzDO Bug)",
-                        "type":"WorkItemField",
-                        "properties": {
-                            "workItemFieldTypes":["HTML"]
-                        },
-                        "validation": {
-                            "dataType": "String",
-                            "isRequired": false
-                        }
-                    },
-                    {
-                        "id":"ParentFieldTitle",
-                        "name":"Parent Field Title, used in the dialog that asks to add additional products to the parent field.",
-                        "validation": {
-                            "dataType": "String",
-                            "isRequired": false
-                        }
-                    },
-                    {
-                        "id":"OnlyPublic",
-                        "name":"Only allow products that have been imported from PMDM",
-                        "inputMode": "CheckBox",
-                        "validation": {
-                            "dataType": "Boolean"
-                        }
-                    }
-				]
-            }
-        },
         {
             "id": "products-hub",
             "type": "ms.vss-web.hub",
@@ -148,27 +44,9 @@
                 "ms.vss-web.project-admin-hub-group"
                 ],
             "properties": {
-                "name": "Products",
+                "name": "Grid Debug 2",
                 "order": 99,
                 "uri": "dist/productshub.html"
-            }
-        },
-        {
-            "id": "form-selector-dialog",
-            "type": "ms.vss-web.control",
-            "description": "The product selector dialog",
-            "targets": [],
-            "properties": {
-                "uri": "dist/formselectordialog.html"
-            }
-        },
-        {
-            "id": "continue-products-dialog",
-            "type": "ms.vss-web.control",
-            "description": "Asks the user if products should be added to the parent field",
-            "targets": [],
-            "properties": {
-                "uri": "dist/continueproductsdialog.html"
             }
         }
     ]
