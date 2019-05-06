@@ -1,7 +1,7 @@
 {
     "manifestVersion": 1.0,
     "id": "vsts-extensions-grid-debug",
-    "version": "0.0.0.67",
+    "version": "0.0.0.69",
     "name": "Grid Debugging",
     "description": "Figuring out why the grid control isn't working.",
     "public": false,
